@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: platewise-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: platewise_root
+      MYSQL_DATABASE: platewise_db
+      MYSQL_USER: platewise_user
+      MYSQL_PASSWORD: platewise_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # To initialize the database automatically on first startup:
+      - ./database/member4/01_stubs.sql:/docker-entrypoint-initdb.d/01_stubs.sql
+      - ./database/member4/02_member4_schema.sql:/docker-entrypoint-initdb.d/02_member4_schema.sql
+      - ./database/member4/03_triggers.sql:/docker-entrypoint-initdb.d/03_triggers.sql
+      - ./database/member4/04_procedures.sql:/docker-entrypoint-initdb.d/04_procedures.sql
+      - ./database/member4/05_views.sql:/docker-entrypoint-initdb.d/05_views.sql
+      - ./database/member4/06_seed.sql:/docker-entrypoint-initdb.d/06_seed.sql
+      - ./database/member4/07_roles.sql:/docker-entrypoint-initdb.d/07_roles.sql
+    command: --default-authentication-plugin=mysql_native_password --event-scheduler=ON
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pplatewise_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
+
