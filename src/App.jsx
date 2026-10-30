@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import Home from './pages/Home/Home';
 import AuthModal from './components/common/AuthModal';
 import DemoModal from './components/common/DemoModal';
+import getMember4Routes from './routes/member4Routes';
 
-function App() {
+function LandingLayout() {
   const [authModal, setAuthModal] = useState({
     isOpen: false,
     mode: 'login',
@@ -65,6 +67,17 @@ function App() {
         onClose={handleCloseDemo}
       />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingLayout />} />
+        {getMember4Routes()}
+      </Routes>
+    </BrowserRouter>
   );
 }
 
