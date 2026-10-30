@@ -112,7 +112,7 @@ CREATE PROCEDURE seed_sales_history_6weeks()
 BEGIN
     DECLARE v_day_offset INT DEFAULT 42;
     DECLARE v_date DATE;
-    DECLARE v_day_name VARCHAR(10);
+    DECLARE v_day_name VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     DECLARE v_day_of_week INT;
     DECLARE v_base_mult DECIMAL(4,2);
     DECLARE v_item INT;
@@ -123,7 +123,7 @@ BEGIN
 
     WHILE v_day_offset >= 1 DO
         SET v_date = DATE_SUB(CURRENT_DATE, INTERVAL v_day_offset DAY);
-        SET v_day_name = DAYNAME(v_date);
+        SET v_day_name = CONVERT(DAYNAME(v_date) USING utf8mb4) COLLATE utf8mb4_unicode_ci;
         SET v_day_of_week = DAYOFWEEK(v_date); -- 1=Sun, 7=Sat
 
         -- Weekday multipliers (Campus rush Tue-Thu, weekend drop)
@@ -206,7 +206,7 @@ BEGIN
     DECLARE v_wasted INT;
 
     WHILE i <= 30 DO
-        SET v_date = DATE_SUB(CURRENT_DATE, INTERVAL (i + 1) DAY);
+        SET v_date = DATE_SUB(CURRENT_DATE, INTERVAL i + 1 DAY);
         SET v_item = ((i * 3) % 12) + 1;
         SET v_leftover = 15 + (i % 12);
         SET v_donated = ROUND(v_leftover * 0.70);
@@ -252,15 +252,15 @@ INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price) VALUES
 -- ----------------------------------------------------------------------------
 -- Resolved Complaints (Historical)
 INSERT INTO complaints (complaint_id, user_id, menu_item_id, description, category, severity, status, assigned_to, created_at, resolution_deadline, resolved_at, escalation_level) VALUES
-(1, 5, 1, 'Found a tiny pebble in the Kanda Poha breakfast batch.', 'foreign_object', 'medium', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_SUB(NOW(), INTERVAL 13 DAY), DATE_SUB(NOW(), INTERVAL 13 DAY + INTERVAL 2 HOUR), 0),
+(1, 5, 1, 'Found a tiny pebble in the Kanda Poha breakfast batch.', 'foreign_object', 'medium', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_SUB(NOW(), INTERVAL 13 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 13 DAY), INTERVAL 2 HOUR), 0),
 (2, 6, 3, 'Special Veg Thali was delivered lukewarm and subji was slightly salty.', 'food_quality', 'low', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 12 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY), 0),
-(3, 7, 11, 'Counter cashier was rude when asked for digital UPI receipt.', 'service', 'medium', 'resolved', 1, DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY + INTERVAL 5 HOUR), 0),
-(4, 8, 4, 'Sambhar smelled slightly sour during late breakfast rush.', 'food_quality', 'high', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_SUB(NOW(), INTERVAL 8 DAY - INTERVAL 4 HOUR), DATE_SUB(NOW(), INTERVAL 8 DAY - INTERVAL 2 HOUR), 0),
-(5, 9, 2, 'Samosa crust was completely raw from the inside.', 'food_quality', 'medium', 'resolved', 3, DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY + INTERVAL 10 HOUR), 0),
-(6, 10, 8, 'Thin hair found wrapped in the butter paper of the paneer roll.', 'hygiene', 'high', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY - INTERVAL 4 HOUR), DATE_SUB(NOW(), INTERVAL 6 DAY - INTERVAL 3 HOUR), 0),
-(7, 11, 9, 'Rice portion had an unwashed dirt spot near cabbage garnish.', 'hygiene', 'medium', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY + INTERVAL 6 HOUR), 0),
-(8, 12, 5, 'Pav Bhaji was over-spiced and butter smelled rancid.', 'food_quality', 'high', 'resolved', 3, DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY - INTERVAL 4 HOUR), DATE_SUB(NOW(), INTERVAL 5 DAY - INTERVAL 3 HOUR), 0),
-(9, 13, 12, 'Filter coffee was cold and cup had fingerprints on the rim.', 'hygiene', 'medium', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY + INTERVAL 4 HOUR), 0),
+(3, 7, 11, 'Counter cashier was rude when asked for digital UPI receipt.', 'service', 'medium', 'resolved', 1, DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 9 DAY), INTERVAL 5 HOUR), 0),
+(4, 8, 4, 'Sambhar smelled slightly sour during late breakfast rush.', 'food_quality', 'high', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 8 DAY), INTERVAL 4 HOUR), DATE_ADD(DATE_SUB(NOW(), INTERVAL 8 DAY), INTERVAL 2 HOUR), 0),
+(5, 9, 2, 'Samosa crust was completely raw from the inside.', 'food_quality', 'medium', 'resolved', 3, DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 6 DAY), INTERVAL 10 HOUR), 0),
+(6, 10, 8, 'Thin hair found wrapped in the butter paper of the paneer roll.', 'hygiene', 'high', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 6 DAY), INTERVAL 4 HOUR), DATE_ADD(DATE_SUB(NOW(), INTERVAL 6 DAY), INTERVAL 3 HOUR), 0),
+(7, 11, 9, 'Rice portion had an unwashed dirt spot near cabbage garnish.', 'hygiene', 'medium', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 4 DAY), INTERVAL 6 HOUR), 0),
+(8, 12, 5, 'Pav Bhaji was over-spiced and butter smelled rancid.', 'food_quality', 'high', 'resolved', 3, DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 5 DAY), INTERVAL 4 HOUR), DATE_ADD(DATE_SUB(NOW(), INTERVAL 5 DAY), INTERVAL 3 HOUR), 0),
+(9, 13, 12, 'Filter coffee was cold and cup had fingerprints on the rim.', 'hygiene', 'medium', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 3 DAY), INTERVAL 4 HOUR), 0),
 (10, 14, 6, 'Chole gravy had excessive food color leaving heavy stains.', 'food_quality', 'low', 'resolved', 2, DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), 0);
 
 -- In-Progress Complaints
@@ -276,8 +276,8 @@ INSERT INTO complaints (complaint_id, user_id, menu_item_id, description, catego
 (16, 10, 4, 'Chutney was watery and had sour off-taste.', 'food_quality', 'medium', 'open', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_ADD(NOW(), INTERVAL 22 HOUR), 0),
 (17, 11, 1, 'Poha was served without lemon and was lukewarm.', 'food_quality', 'low', 'open', DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 71 HOUR), 0),
 (18, 12, 5, 'Dirty plate with previous food residue handed at counter.', 'hygiene', 'medium', 'open', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_ADD(NOW(), INTERVAL 21 HOUR), 0),
-(19, 13, 9, 'Veg Biryani was unseasoned and vegetables were undercooked.', 'food_quality', 'medium', 'open', DATE_SUB(NOW(), INTERVAL 30 MINUTE), DATE_ADD(NOW(), INTERVAL 23 HOUR + INTERVAL 30 MINUTE), 0),
-(20, 14, 12, 'Overcharged ₹25 for filter coffee listed at ₹18 on noticeboard.', 'service', 'medium', 'open', DATE_SUB(NOW(), INTERVAL 45 MINUTE), DATE_ADD(NOW(), INTERVAL 23 HOUR + INTERVAL 15 MINUTE), 0);
+(19, 13, 9, 'Veg Biryani was unseasoned and vegetables were undercooked.', 'food_quality', 'medium', 'open', DATE_SUB(NOW(), INTERVAL 30 MINUTE), DATE_ADD(DATE_ADD(NOW(), INTERVAL 23 HOUR), INTERVAL 30 MINUTE), 0),
+(20, 14, 12, 'Overcharged ₹25 for filter coffee listed at ₹18 on noticeboard.', 'service', 'medium', 'open', DATE_SUB(NOW(), INTERVAL 45 MINUTE), DATE_ADD(DATE_ADD(NOW(), INTERVAL 23 HOUR), INTERVAL 15 MINUTE), 0);
 
 -- CRITICAL / OVERDUE & ESCALATED COMPLAINTS (Key for viva showcase)
 INSERT INTO complaints (complaint_id, user_id, menu_item_id, description, category, severity, status, assigned_to, created_at, resolution_deadline, escalated_at, escalation_level) VALUES
@@ -332,4 +332,3 @@ INSERT INTO audit_logs (table_name, record_id, action, old_value, new_value, cha
 ('complaints', 23, 'UPDATE', JSON_OBJECT('status', 'in_progress', 'escalation_level', 1), JSON_OBJECT('status', 'escalated', 'escalation_level', 2), 1, DATE_SUB(NOW(), INTERVAL 9 HOUR));
 
 SET FOREIGN_KEY_CHECKS = 1;
-

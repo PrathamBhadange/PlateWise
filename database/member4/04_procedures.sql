@@ -12,16 +12,17 @@ DELIMITER $$
 -- Rule-based NLP classifier matching grievance descriptions against `complaint_keywords`.
 -- Returns category and severity based on keyword severity hierarchy:
 -- critical > high > medium > low. Defaults to 'other' / 'medium'.
+-- Collation explicitly set to utf8mb4_unicode_ci to prevent mixed collation errors.
 -- ----------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS classify_complaint$$
 CREATE PROCEDURE classify_complaint (
-    IN p_description TEXT,
-    OUT p_category VARCHAR(30),
-    OUT p_severity VARCHAR(20)
+    IN p_description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    OUT p_category VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    OUT p_severity VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 )
 BEGIN
-    DECLARE found_category VARCHAR(30) DEFAULT NULL;
-    DECLARE found_severity VARCHAR(20) DEFAULT NULL;
+    DECLARE found_category VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL;
+    DECLARE found_severity VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL;
 
     -- Match against keyword rulebook with severity ordering
     SELECT category, severity
@@ -54,10 +55,10 @@ DROP PROCEDURE IF EXISTS submit_complaint$$
 CREATE PROCEDURE submit_complaint (
     IN p_user_id INT,
     IN p_menu_item_id INT,
-    IN p_description TEXT,
+    IN p_description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
     OUT p_complaint_id INT,
-    OUT p_category VARCHAR(30),
-    OUT p_severity VARCHAR(20)
+    OUT p_category VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    OUT p_severity VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 )
 proc_label: BEGIN
     DECLARE v_user_exists INT DEFAULT 0;
@@ -212,8 +213,8 @@ CREATE PROCEDURE refresh_sales_history (
     IN p_date DATE
 )
 BEGIN
-    DECLARE v_weekday VARCHAR(10);
-    SET v_weekday = DAYNAME(p_date);
+    DECLARE v_weekday VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    SET v_weekday = CONVERT(DAYNAME(p_date) USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 
     INSERT INTO sales_history (
         menu_item_id,
@@ -269,14 +270,15 @@ END$$
 -- 3. Waste penalty: If historical leftover exceeds 15%, scales back cook estimate.
 -- 4. Dynamic confidence level based on sample points (HIGH >=4, MED 2-3, LOW 1, VERY_LOW 0).
 -- Guarded against divide-by-zero on empty histories.
+-- Explicit character set and collation prevents collation conflicts.
 -- ----------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS get_demand_recommendation$$
 CREATE PROCEDURE get_demand_recommendation (
     IN p_target_date DATE
 )
 BEGIN
-    DECLARE v_weekday VARCHAR(10);
-    SET v_weekday = DAYNAME(p_target_date);
+    DECLARE v_weekday VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    SET v_weekday = CONVERT(DAYNAME(p_target_date) USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 
     SELECT 
         m.menu_item_id,
@@ -300,9 +302,9 @@ BEGIN
                     GREATEST(
                         COALESCE(pre.pre_order_qty, 0),
                         ROUND(
-                            (hist.avg_sold * 
+                            (COALESCE(hist.avg_sold, 0) * 
                                 CASE 
-                                    WHEN hist.leftover_percentage > 15.0 THEN 
+                                    WHEN COALESCE(hist.leftover_percentage, 0) > 15.0 THEN 
                                         GREATEST(0.50, 1.0 - ((hist.leftover_percentage - 15.0) / 100.0))
                                     ELSE 1.0 
                                 END
@@ -333,7 +335,7 @@ BEGIN
                 ELSE 0.0 
             END AS leftover_percentage
         FROM sales_history sh
-        WHERE sh.weekday = v_weekday
+        WHERE sh.weekday = v_weekday COLLATE utf8mb4_unicode_ci
           AND sh.sale_date >= DATE_SUB(p_target_date, INTERVAL 28 DAY)
           AND sh.sale_date < p_target_date
         GROUP BY sh.menu_item_id
@@ -392,4 +394,3 @@ CREATE EVENT evt_escalate_overdue
 ON SCHEDULE EVERY 5 MINUTE
 DO
     CALL escalate_overdue_complaints(@discard_escalated_count);
-
