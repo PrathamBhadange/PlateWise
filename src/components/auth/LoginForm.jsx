@@ -188,14 +188,35 @@ export default function LoginForm({ onNavigateSignUp, onNavigateForgotPassword }
           <p className="text-[11px] text-[#252A27]/80 leading-relaxed">
             {submittedBanner.message}
           </p>
-          <button
-            type="button"
-            onClick={() => navigate('/student/dashboard')}
-            className="w-full mt-1.5 py-2 px-3 bg-[#245C45] hover:bg-[#164B38] text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-          >
-            <span>Proceed to Student Dashboard</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          {role === 'staff' ? (
+            <div className="grid grid-cols-2 gap-2 mt-1.5">
+              <button
+                type="button"
+                onClick={() => navigate('/staff/dashboard')}
+                className="py-2 px-2.5 bg-[#245C45] hover:bg-[#164B38] text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
+              >
+                <span>Cashier View</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/staff/kitchen')}
+                className="py-2 px-2.5 bg-[#164B38] hover:bg-[#245C45] text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
+              >
+                <span>Kitchen View</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate(role === 'student' ? '/student/dashboard' : '/student/dashboard')}
+              className="w-full mt-1.5 py-2 px-3 bg-[#245C45] hover:bg-[#164B38] text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            >
+              <span>Proceed to {submittedBanner.roleLabel} Dashboard</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       )}
 
