@@ -2,6 +2,7 @@ export default function BrandLogo({
   inverted = false,
   showTagline = true,
   size = 'md',
+  href = '#home',
   onClick,
 }) {
   const iconSizeClasses = {
@@ -18,7 +19,7 @@ export default function BrandLogo({
 
   return (
     <a
-      href="#home"
+      href={href}
       onClick={onClick}
       className="group inline-flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#245C45] rounded-lg transition-transform"
       aria-label="PlateWise Home"
