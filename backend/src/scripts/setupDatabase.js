@@ -78,6 +78,8 @@ async function runSetup() {
       { name: 'complaints', min: 40 },
       { name: 'donations', min: 30 },
       { name: 'audit_logs', min: 5 },
+      { name: 'orders', min: 15 },
+      { name: 'food_batches', min: 42 },
     ];
 
     for (const item of checkTables) {

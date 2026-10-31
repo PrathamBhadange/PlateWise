@@ -1,8 +1,15 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Lock, Mail, User, Info, ArrowRight, ShieldCheck } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 
+const ROLE_PATHS = {
+  cafeteria: '/kitchen',
+  admin: '/admin',
+};
+
 export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
+  const navigate = useNavigate();
   const [mode, setMode] = useState(initialMode);
   const [role, setRole] = useState('student');
   const [notice, setNotice] = useState('');
@@ -14,6 +21,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     setNotice(
       'Notice: Authentication backend is pending DBMS database connection in Phase 2. This interface demonstrates the upcoming login architecture.'
     );
+    const targetPath = ROLE_PATHS[role];
+    if (targetPath) {
+      onClose();
+      navigate(targetPath);
+    }
   };
 
   return (

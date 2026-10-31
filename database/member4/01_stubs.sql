@@ -34,12 +34,15 @@ CREATE TABLE menu_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Orders table (Member 2 module stub)
+-- Includes pickup_slot, payment_status, and full kitchen lifecycle statuses
 CREATE TABLE orders (
     order_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     pickup_date DATE NOT NULL,
-    status ENUM('pending', 'confirmed', 'ready', 'picked_up', 'cancelled') NOT NULL DEFAULT 'confirmed',
+    pickup_slot VARCHAR(50) NOT NULL DEFAULT '12:30 PM - 01:00 PM',
+    payment_status ENUM('Paid', 'Pending', 'Failed') NOT NULL DEFAULT 'Paid',
+    status ENUM('Pending', 'Confirmed', 'Preparing', 'Ready', 'Collected', 'Cancelled', 'picked_up') NOT NULL DEFAULT 'Pending',
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -84,4 +87,3 @@ CREATE TABLE waste_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
-

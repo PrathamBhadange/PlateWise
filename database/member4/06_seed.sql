@@ -232,20 +232,66 @@ CALL seed_donations_and_waste();
 DROP PROCEDURE IF EXISTS seed_donations_and_waste;
 
 -- ----------------------------------------------------------------------------
--- 6. Pre-Orders Placed for Today (to demonstrate Demand Recommendation engine)
+-- 5b. Food Batches for Today (Current Inventory demo with Out of Stock, Low Stock <= 15, and Available)
 -- ----------------------------------------------------------------------------
-INSERT INTO orders (order_id, user_id, pickup_date, status) VALUES
-(101, 5, CURRENT_DATE, 'confirmed'),
-(102, 6, CURRENT_DATE, 'confirmed'),
-(103, 7, CURRENT_DATE, 'confirmed'),
-(104, 8, CURRENT_DATE, 'confirmed');
+INSERT INTO food_batches (menu_item_id, batch_date, cooked_qty, sold_qty, leftover_qty) VALUES
+(1, CURRENT_DATE, 100, 85, 15),   -- Kanda Poha (remaining 15 -> Low Stock)
+(2, CURRENT_DATE, 180, 180, 0),   -- Crispy Samosa (remaining 0 -> Out of Stock)
+(3, CURRENT_DATE, 130, 95, 35),   -- Special Veg Thali (remaining 35 -> Available)
+(4, CURRENT_DATE, 95, 70, 25),    -- Masala Dosa (remaining 25 -> Available)
+(5, CURRENT_DATE, 85, 73, 12),    -- Mumbai Pav Bhaji (remaining 12 -> Low Stock)
+(6, CURRENT_DATE, 80, 72, 8),     -- Amritsari Chole Bhature (remaining 8 -> Low Stock)
+(7, CURRENT_DATE, 70, 56, 14),    -- Idli Vada Combo (remaining 14 -> Low Stock)
+(8, CURRENT_DATE, 90, 62, 28),    -- Paneer Kathi Roll (remaining 28 -> Available)
+(9, CURRENT_DATE, 110, 78, 32),   -- Hyderabadi Veg Biryani (remaining 32 -> Available)
+(10, CURRENT_DATE, 60, 60, 0),    -- Rava Upma (remaining 0 -> Out of Stock)
+(11, CURRENT_DATE, 250, 205, 45), -- Special Masala Chai (remaining 45 -> Available)
+(12, CURRENT_DATE, 160, 125, 35); -- South Indian Filter Coffee (remaining 35 -> Available)
+
+-- ----------------------------------------------------------------------------
+-- 6. Orders Placed for Today (Spanning Pending -> Confirmed -> Preparing -> Ready -> Collected / Cancelled)
+-- ----------------------------------------------------------------------------
+INSERT INTO orders (order_id, user_id, order_date, pickup_date, pickup_slot, payment_status, status) VALUES
+(101, 5, DATE_SUB(NOW(), INTERVAL 15 MINUTE), CURRENT_DATE, '12:00 PM - 12:30 PM', 'Paid', 'Pending'),
+(102, 6, DATE_SUB(NOW(), INTERVAL 25 MINUTE), CURRENT_DATE, '12:00 PM - 12:30 PM', 'Pending', 'Pending'),
+(103, 7, DATE_SUB(NOW(), INTERVAL 40 MINUTE), CURRENT_DATE, '12:30 PM - 01:00 PM', 'Paid', 'Pending'),
+(104, 8, DATE_SUB(NOW(), INTERVAL 50 MINUTE), CURRENT_DATE, '12:30 PM - 01:00 PM', 'Paid', 'Confirmed'),
+(105, 9, DATE_SUB(NOW(), INTERVAL 60 MINUTE), CURRENT_DATE, '12:30 PM - 01:00 PM', 'Paid', 'Confirmed'),
+(106, 10, DATE_SUB(NOW(), INTERVAL 75 MINUTE), CURRENT_DATE, '12:30 PM - 01:00 PM', 'Paid', 'Confirmed'),
+(107, 11, DATE_SUB(NOW(), INTERVAL 80 MINUTE), CURRENT_DATE, '01:00 PM - 01:30 PM', 'Paid', 'Preparing'),
+(108, 12, DATE_SUB(NOW(), INTERVAL 95 MINUTE), CURRENT_DATE, '01:00 PM - 01:30 PM', 'Paid', 'Preparing'),
+(109, 13, DATE_SUB(NOW(), INTERVAL 110 MINUTE), CURRENT_DATE, '01:00 PM - 01:30 PM', 'Paid', 'Preparing'),
+(110, 14, DATE_SUB(NOW(), INTERVAL 130 MINUTE), CURRENT_DATE, '12:00 PM - 12:30 PM', 'Paid', 'Ready'),
+(111, 15, DATE_SUB(NOW(), INTERVAL 140 MINUTE), CURRENT_DATE, '12:30 PM - 01:00 PM', 'Paid', 'Ready'),
+(112, 5, DATE_SUB(NOW(), INTERVAL 150 MINUTE), CURRENT_DATE, '12:30 PM - 01:00 PM', 'Paid', 'Ready'),
+(113, 6, DATE_SUB(NOW(), INTERVAL 180 MINUTE), CURRENT_DATE, '11:30 AM - 12:00 PM', 'Paid', 'Collected'),
+(114, 7, DATE_SUB(NOW(), INTERVAL 200 MINUTE), CURRENT_DATE, '11:30 AM - 12:00 PM', 'Paid', 'Collected'),
+(115, 8, DATE_SUB(NOW(), INTERVAL 220 MINUTE), CURRENT_DATE, '12:00 PM - 12:30 PM', 'Failed', 'Cancelled');
 
 INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price) VALUES
 (101, 3, 2, 85.00), -- 2 Veg Thali
 (101, 11, 2, 12.00),-- 2 Chai
-(102, 9, 3, 90.00), -- 3 Biryani
-(103, 1, 4, 25.00), -- 4 Poha
-(104, 5, 2, 65.00); -- 2 Pav Bhaji
+(102, 9, 2, 90.00), -- 2 Biryani
+(102, 12, 1, 18.00),-- 1 Coffee
+(103, 1, 3, 25.00), -- 3 Poha
+(103, 11, 3, 12.00),-- 3 Chai
+(104, 5, 2, 65.00), -- 2 Pav Bhaji
+(105, 4, 2, 50.00), -- 2 Masala Dosa
+(105, 12, 2, 18.00),-- 2 Coffee
+(106, 6, 2, 75.00), -- 2 Chole Bhature
+(107, 8, 2, 55.00), -- 2 Paneer Roll
+(107, 11, 1, 12.00),-- 1 Chai
+(108, 9, 3, 90.00), -- 3 Biryani
+(109, 3, 1, 85.00), -- 1 Veg Thali
+(109, 2, 2, 20.00), -- 2 Samosa
+(110, 4, 1, 50.00), -- 1 Masala Dosa
+(111, 7, 2, 40.00), -- 2 Idli Vada
+(112, 5, 1, 65.00), -- 1 Pav Bhaji
+(112, 11, 2, 12.00),-- 2 Chai
+(113, 1, 2, 25.00), -- 2 Poha
+(114, 2, 3, 20.00), -- 3 Samosa
+(114, 11, 2, 12.00),-- 2 Chai
+(115, 6, 1, 75.00); -- 1 Chole Bhature
 
 -- ----------------------------------------------------------------------------
 -- 7. Complaints (40 Real-World Grievances Across All Statuses, SLA Deadlines & Breaches)
