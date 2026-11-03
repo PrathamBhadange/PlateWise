@@ -462,6 +462,18 @@ export default function AdminComplaints() {
                     {selectedComplaint.description}
                   </p>
                 </div>
+                {selectedComplaint.proof_image && (
+                  <div className="pt-2 border-t border-[#245C45]/10">
+                    <span className="text-[#252A27]/60 block mb-1 font-semibold">Evidence / Proof Photo:</span>
+                    <img
+                      src={selectedComplaint.proof_image}
+                      alt="Complaint Evidence"
+                      className="max-h-48 w-auto rounded-xl border border-[#245C45]/20 object-contain bg-white cursor-pointer hover:opacity-95"
+                      onClick={() => window.open(selectedComplaint.proof_image, '_blank')}
+                      title="Click to view full image in new tab"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Management Form */}

@@ -19,6 +19,7 @@ const SQL_FILES = [
   '05_views.sql',
   '06_seed.sql',
   '07_roles.sql',
+  '09_auth_migration.sql',
 ];
 
 async function runSetup() {

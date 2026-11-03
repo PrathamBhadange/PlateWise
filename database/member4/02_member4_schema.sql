@@ -50,20 +50,20 @@ CREATE TABLE sales_history (
     qty_leftover INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_sales_history_menu_item 
-        FOREIGN KEY (menu_item_id) 
-        REFERENCES menu_items(menu_item_id) 
-        ON DELETE CASCADE 
+    CONSTRAINT fk_sales_history_menu_item
+        FOREIGN KEY (menu_item_id)
+        REFERENCES menu_items(menu_item_id)
+        ON DELETE CASCADE
         ON UPDATE CASCADE,
-    CONSTRAINT uq_sales_history_item_date 
+    CONSTRAINT uq_sales_history_item_date
         UNIQUE (menu_item_id, sale_date),
-    CONSTRAINT chk_sales_qty_sold 
+    CONSTRAINT chk_sales_qty_sold
         CHECK (qty_sold >= 0),
-    CONSTRAINT chk_sales_revenue 
+    CONSTRAINT chk_sales_revenue
         CHECK (revenue >= 0.00),
-    CONSTRAINT chk_sales_qty_cooked 
+    CONSTRAINT chk_sales_qty_cooked
         CHECK (qty_cooked >= 0),
-    CONSTRAINT chk_sales_qty_leftover 
+    CONSTRAINT chk_sales_qty_leftover
         CHECK (qty_leftover >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -90,6 +90,7 @@ CREATE TABLE complaints (
     user_id INT NOT NULL,
     menu_item_id INT NULL,
     description TEXT NOT NULL,
+    proof_image LONGTEXT NULL,
     category ENUM('hygiene', 'food_quality', 'foreign_object', 'service', 'other') NOT NULL DEFAULT 'other',
     severity ENUM('low', 'medium', 'high', 'critical') NOT NULL DEFAULT 'medium',
     status ENUM('open', 'in_progress', 'resolved', 'escalated', 'closed') NOT NULL DEFAULT 'open',
@@ -100,22 +101,22 @@ CREATE TABLE complaints (
     escalated_at TIMESTAMP NULL,
     escalation_level INT NOT NULL DEFAULT 0,
 
-    CONSTRAINT fk_complaints_user 
-        FOREIGN KEY (user_id) 
-        REFERENCES users(user_id) 
-        ON DELETE CASCADE 
+    CONSTRAINT fk_complaints_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE
         ON UPDATE CASCADE,
-    CONSTRAINT fk_complaints_menu_item 
-        FOREIGN KEY (menu_item_id) 
-        REFERENCES menu_items(menu_item_id) 
-        ON DELETE SET NULL 
+    CONSTRAINT fk_complaints_menu_item
+        FOREIGN KEY (menu_item_id)
+        REFERENCES menu_items(menu_item_id)
+        ON DELETE SET NULL
         ON UPDATE CASCADE,
-    CONSTRAINT fk_complaints_assigned 
-        FOREIGN KEY (assigned_to) 
-        REFERENCES users(user_id) 
-        ON DELETE SET NULL 
+    CONSTRAINT fk_complaints_assigned
+        FOREIGN KEY (assigned_to)
+        REFERENCES users(user_id)
+        ON DELETE SET NULL
         ON UPDATE CASCADE,
-    CONSTRAINT chk_escalation_level 
+    CONSTRAINT chk_escalation_level
         CHECK (escalation_level >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -131,15 +132,15 @@ CREATE TABLE complaint_actions (
     remarks TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_complaint_actions_complaint 
-        FOREIGN KEY (complaint_id) 
-        REFERENCES complaints(complaint_id) 
-        ON DELETE CASCADE 
+    CONSTRAINT fk_complaint_actions_complaint
+        FOREIGN KEY (complaint_id)
+        REFERENCES complaints(complaint_id)
+        ON DELETE CASCADE
         ON UPDATE CASCADE,
-    CONSTRAINT fk_complaint_actions_user 
-        FOREIGN KEY (action_by) 
-        REFERENCES users(user_id) 
-        ON DELETE SET NULL 
+    CONSTRAINT fk_complaint_actions_user
+        FOREIGN KEY (action_by)
+        REFERENCES users(user_id)
+        ON DELETE SET NULL
         ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -157,10 +158,10 @@ CREATE TABLE audit_logs (
     changed_by INT NULL,
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_audit_logs_user 
-        FOREIGN KEY (changed_by) 
-        REFERENCES users(user_id) 
-        ON DELETE SET NULL 
+    CONSTRAINT fk_audit_logs_user
+        FOREIGN KEY (changed_by)
+        REFERENCES users(user_id)
+        ON DELETE SET NULL
         ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -173,11 +174,10 @@ CREATE TABLE audit_logs (
 -- Speeds up date-range aggregation and weekday demand pattern lookups per dish.
 -- ============================================================================
 
-CREATE INDEX idx_complaints_status_deadline 
+CREATE INDEX idx_complaints_status_deadline
     ON complaints(status, resolution_deadline);
 
-CREATE INDEX idx_sales_history_item_date 
+CREATE INDEX idx_sales_history_item_date
     ON sales_history(menu_item_id, sale_date);
 
 SET FOREIGN_KEY_CHECKS = 1;
-

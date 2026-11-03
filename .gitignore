@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Database backups
+*.sql.backup
+*.dump
+*.bak
+
+# Test and coverage output
+coverage/
+
+# OS files
+Thumbs.db

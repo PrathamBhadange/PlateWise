@@ -28,9 +28,9 @@ BEGIN
     SELECT category, severity
     INTO found_category, found_severity
     FROM complaint_keywords
-    WHERE LOWER(p_description) REGEXP CONCAT('[[:<:]]', LOWER(keyword), '[[:>:]]')
+    WHERE LOWER(p_description) REGEXP CONCAT('\\b', LOWER(keyword), '\\b')
        OR LOWER(p_description) LIKE CONCAT('%', LOWER(keyword), '%')
-    ORDER BY 
+    ORDER BY
         CASE severity
             WHEN 'critical' THEN 4
             WHEN 'high' THEN 3
@@ -187,7 +187,7 @@ BEGIN
     WHERE c.status NOT IN ('resolved', 'closed')
       AND c.resolution_deadline < CURRENT_TIMESTAMP
       AND (
-          c.escalated_at IS NULL 
+          c.escalated_at IS NULL
           OR c.escalated_at <= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 2 HOUR)
       );
 
@@ -225,7 +225,7 @@ BEGIN
         qty_cooked,
         qty_leftover
     )
-    SELECT 
+    SELECT
         m.menu_item_id,
         p_date AS sale_date,
         v_weekday AS weekday,
@@ -235,7 +235,7 @@ BEGIN
         COALESCE(batch_agg.total_leftover, 0) AS qty_leftover
     FROM menu_items m
     LEFT JOIN (
-        SELECT 
+        SELECT
             oi.menu_item_id,
             SUM(oi.quantity) AS total_sold,
             SUM(oi.quantity * oi.unit_price) AS total_revenue
@@ -246,7 +246,7 @@ BEGIN
         GROUP BY oi.menu_item_id
     ) orders_agg ON m.menu_item_id = orders_agg.menu_item_id
     LEFT JOIN (
-        SELECT 
+        SELECT
             fb.menu_item_id,
             SUM(fb.cooked_qty) AS total_cooked,
             SUM(fb.leftover_qty) AS total_leftover
@@ -280,7 +280,7 @@ BEGIN
     DECLARE v_weekday VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     SET v_weekday = CONVERT(DAYNAME(p_target_date) USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 
-    SELECT 
+    SELECT
         m.menu_item_id,
         m.name AS item_name,
         m.category,
@@ -290,23 +290,23 @@ BEGIN
         ROUND(COALESCE(hist.avg_sold, 0), 1) AS weekday_avg_sold,
         ROUND(COALESCE(hist.leftover_percentage, 0), 1) AS historical_waste_pct,
         COALESCE(pre.pre_order_qty, 0) AS pre_orders,
-        
+
         -- Recommendation Formula:
         -- If no history, default to pre_orders + safe baseline
         -- If leftover > 15%, scale recommendation by reduction factor (1 - (waste - 15%))
         CAST(
-            CASE 
+            CASE
                 WHEN COALESCE(hist.data_points, 0) = 0 THEN
                     GREATEST(COALESCE(pre.pre_order_qty, 0), 15)
                 ELSE
                     GREATEST(
                         COALESCE(pre.pre_order_qty, 0),
                         ROUND(
-                            (COALESCE(hist.avg_sold, 0) * 
-                                CASE 
-                                    WHEN COALESCE(hist.leftover_percentage, 0) > 15.0 THEN 
+                            (COALESCE(hist.avg_sold, 0) *
+                                CASE
+                                    WHEN COALESCE(hist.leftover_percentage, 0) > 15.0 THEN
                                         GREATEST(0.50, 1.0 - ((hist.leftover_percentage - 15.0) / 100.0))
-                                    ELSE 1.0 
+                                    ELSE 1.0
                                 END
                             ) + (COALESCE(pre.pre_order_qty, 0) * 0.25)
                         )
@@ -315,7 +315,7 @@ BEGIN
         ) AS recommended_qty,
 
         -- Confidence Rating
-        CASE 
+        CASE
             WHEN COALESCE(hist.data_points, 0) >= 4 THEN 'HIGH'
             WHEN COALESCE(hist.data_points, 0) >= 2 THEN 'MEDIUM'
             WHEN COALESCE(hist.data_points, 0) = 1 THEN 'LOW'
@@ -325,14 +325,14 @@ BEGIN
     FROM menu_items m
     -- Historical 4-week weekday window
     LEFT JOIN (
-        SELECT 
+        SELECT
             sh.menu_item_id,
             COUNT(sh.sales_history_id) AS data_points,
             AVG(sh.qty_sold) AS avg_sold,
-            CASE 
-                WHEN SUM(sh.qty_cooked) > 0 THEN 
+            CASE
+                WHEN SUM(sh.qty_cooked) > 0 THEN
                     (SUM(sh.qty_leftover) * 100.0) / SUM(sh.qty_cooked)
-                ELSE 0.0 
+                ELSE 0.0
             END AS leftover_percentage
         FROM sales_history sh
         WHERE sh.weekday = v_weekday COLLATE utf8mb4_unicode_ci
@@ -342,7 +342,7 @@ BEGIN
     ) hist ON m.menu_item_id = hist.menu_item_id
     -- Confirmed pre-orders placed for the target date
     LEFT JOIN (
-        SELECT 
+        SELECT
             oi.menu_item_id,
             SUM(oi.quantity) AS pre_order_qty
         FROM order_items oi
@@ -363,7 +363,7 @@ CREATE PROCEDURE daily_sales_summary (
     IN p_date DATE
 )
 BEGIN
-    SELECT 
+    SELECT
         p_date AS report_date,
         DAYNAME(p_date) AS weekday,
         COALESCE(SUM(sh.qty_sold), 0) AS total_portions_sold,
@@ -371,11 +371,11 @@ BEGIN
         COALESCE(SUM(sh.qty_leftover), 0) AS total_portions_leftover,
         COALESCE(SUM(sh.revenue), 0.00) AS total_revenue,
         ROUND(
-            CASE 
-                WHEN SUM(sh.qty_cooked) > 0 THEN 
+            CASE
+                WHEN SUM(sh.qty_cooked) > 0 THEN
                     (SUM(sh.qty_leftover) * 100.0) / SUM(sh.qty_cooked)
-                ELSE 0.0 
-            END, 
+                ELSE 0.0
+            END,
             1
         ) AS waste_percentage,
         COUNT(DISTINCT sh.menu_item_id) AS items_sold_count

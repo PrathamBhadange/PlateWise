@@ -8,13 +8,27 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "db:setup": "node src/scripts/setupDatabase.js",
-    "test": "node src/scripts/runTests.js"
+    "seed:users": "node src/scripts/seedDemoUsers.js",
+    "migrate": "node src/scripts/runMigration.js",
+    "migrate:slots": "node src/scripts/runMigration13.js",
+    "test": "node src/scripts/runTests.js",
+    "test:auth": "node src/scripts/testAuthScenarios.js",
+    "test:student": "node src/scripts/testStudentDashboardScenarios.js",
+    "test:slots": "node src/scripts/testPickupSlotCapacity.js",
+    "test:cashier-ngo": "node src/scripts/testCashierAndNgo.js",
+    "test:token": "node src/scripts/testTokenAndQrVerification.js",
+    "test:donations": "node src/scripts/testDonationManagement.js",
+    "test:sponsorship": "node src/scripts/testSponsorshipAndCredits.js",
+    "test:checkout": "node src/scripts/testCheckoutAndCreditRedemption.js",
+    "test:audit": "node src/scripts/testEndToEndIntegrationAudit.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.12.0"
   }
 }
-

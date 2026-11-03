@@ -1,27 +1,33 @@
-import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ChefHat, ShieldCheck, AlertCircle, FilePlus, Home, UserCheck, Terminal } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChefHat, ShieldCheck, AlertCircle, FilePlus, Home, UserCheck, Terminal, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/useAuth';
 
-export default function Member4Header({ title, subtitle, onRoleChange }) {
+export default function Member4Header({ title, subtitle }) {
   const location = useLocation();
-  const [currentRole, setCurrentRole] = useState(
-    localStorage.getItem('platewise_demo_role') || 'admin'
-  );
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
-  const handleRoleSelect = (e) => {
-    const role = e.target.value;
-    setCurrentRole(role);
-    localStorage.setItem('platewise_demo_role', role);
-    if (onRoleChange) onRoleChange(role);
+  const handleLogout = async () => {
+    await logout();
+    navigate('/', { replace: true });
   };
 
+  const kitchenPath = user?.role === 'admin' ? '/admin/kitchen' : '/kitchen';
+
   const navLinks = [
-    { label: 'Kitchen & Demand', path: '/kitchen', icon: ChefHat },
+    { label: 'Kitchen & Demand', path: kitchenPath, icon: ChefHat },
     { label: 'Admin Impact', path: '/admin', icon: ShieldCheck },
     { label: 'Complaints Portal', path: '/admin/complaints', icon: AlertCircle },
     { label: 'New Grievance', path: '/complaints/new', icon: FilePlus },
     { label: 'Dev Hub', path: '/dev', icon: Terminal },
   ];
+
+  const isLinkActive = (linkPath) => {
+    if (linkPath === '/admin') {
+      return location.pathname === '/admin' || location.pathname === '/admin/';
+    }
+    return location.pathname === linkPath || location.pathname.startsWith(`${linkPath}/`);
+  };
 
   return (
     <header className="bg-white border-b border-[#245C45]/10 shadow-xs sticky top-0 z-30">
@@ -43,27 +49,32 @@ export default function Member4Header({ title, subtitle, onRoleChange }) {
             </div>
           </div>
 
-          {/* Controls: Role Switcher & Nav Pills */}
+          {/* Controls: Authenticated Identity & Nav Pills */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Demo Role Switcher */}
-            <div className="inline-flex items-center gap-1.5 bg-[#F8F7F2] border border-[#245C45]/20 rounded-xl px-2.5 py-1 text-xs">
-              <UserCheck className="w-3.5 h-3.5 text-[#245C45]" />
-              <span className="text-[#252A27]/60 font-medium">x-demo-role:</span>
-              <select
-                value={currentRole}
-                onChange={handleRoleSelect}
-                className="bg-transparent font-semibold text-[#245C45] focus:outline-none cursor-pointer"
-              >
-                <option value="admin">admin</option>
-                <option value="kitchen">kitchen</option>
-                <option value="student">student</option>
-              </select>
-            </div>
+            {/* Authenticated User Badge & Logout */}
+            {user ? (
+              <div className="inline-flex items-center gap-2 bg-[#F8F7F2] border border-[#245C45]/20 rounded-xl px-2.5 py-1 text-xs">
+                <UserCheck className="w-3.5 h-3.5 text-[#245C45]" />
+                <span className="text-[#252A27]/80 font-medium">{user.full_name || user.email}</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-[#245C45] text-white text-[10px] font-semibold uppercase">
+                  {user.role}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Logout"
+                  className="ml-1 p-1 text-[#252A27]/60 hover:text-red-600 rounded hover:bg-red-50 transition-colors cursor-pointer"
+                  aria-label="Logout"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : null}
 
             {/* Quick Navigation Pills */}
             <div className="hidden lg:flex items-center gap-1 bg-[#E6EFE7]/50 p-1 rounded-xl border border-[#245C45]/10">
               {navLinks.map((link) => {
-                const isActive = location.pathname === link.path;
+                const isActive = isLinkActive(link.path);
                 const Icon = link.icon;
                 return (
                   <Link
@@ -87,7 +98,7 @@ export default function Member4Header({ title, subtitle, onRoleChange }) {
         {/* Mobile Navigation bar */}
         <div className="flex lg:hidden overflow-x-auto gap-1 pt-3 border-t border-[#245C45]/10 mt-3 pb-1">
           {navLinks.map((link) => {
-            const isActive = location.pathname === link.path;
+            const isActive = isLinkActive(link.path);
             const Icon = link.icon;
             return (
               <Link
@@ -109,4 +120,3 @@ export default function Member4Header({ title, subtitle, onRoleChange }) {
     </header>
   );
 }
-

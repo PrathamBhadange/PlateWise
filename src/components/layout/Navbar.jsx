@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Menu, X, ArrowRight, UserCheck, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Menu, X, ArrowRight, UserCheck, Sparkles, LogOut } from 'lucide-react';
 import BrandLogo from '../common/BrandLogo';
+import { useAuth } from '../../context/useAuth';
 
 const NAV_LINKS = [
   { label: 'Home', href: '#home', id: 'home' },
@@ -14,6 +16,13 @@ export default function Navbar({ onOpenAuth }) {
   const [activeSection, setActiveSection] = useState('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/', { replace: true });
+  };
 
   // Monitor scroll for shadow and active section spy
   useEffect(() => {
@@ -106,21 +115,56 @@ export default function Navbar({ onOpenAuth }) {
 
           {/* Right: Desktop Action Buttons */}
           <div className="hidden md:flex items-center space-x-3">
-            <button
-              type="button"
-              onClick={() => onOpenAuth?.('login')}
-              className="px-4 py-2 text-sm font-medium text-[#245C45] hover:text-[#164B38] hover:bg-[#E6EFE7]/60 rounded-lg transition-colors cursor-pointer"
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenAuth?.('signup')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#245C45] hover:bg-[#164B38] rounded-lg shadow-sm hover:shadow transition-all duration-200 cursor-pointer active:scale-[0.98]"
-            >
-              <span>Sign Up</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = String(user.role || '').toLowerCase();
+                    if (r === 'cashier') navigate('/cashier');
+                    else if (r === 'kitchen') navigate('/kitchen');
+                    else if (r === 'ngo') navigate('/ngo');
+                    else if (r === 'admin') navigate('/admin');
+                    else navigate('/student');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#E6EFE7] hover:bg-[#245C45]/10 border border-[#245C45]/20 rounded-full text-xs font-medium text-[#245C45] transition-all cursor-pointer"
+                  title="Go to your dashboard"
+                >
+                  <span className="w-2 h-2 rounded-full bg-[#245C45]" />
+                  <span>{user.full_name || user.email}</span>
+                  <span className="px-1.5 py-0.2 rounded bg-[#245C45] text-white text-[10px] uppercase font-bold">
+                    {user.role}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Logout"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#252A27]/70 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth?.('login')}
+                  className="px-4 py-2 text-sm font-medium text-[#245C45] hover:text-[#164B38] hover:bg-[#E6EFE7]/60 rounded-lg transition-colors cursor-pointer"
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth?.('signup')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#245C45] hover:bg-[#164B38] rounded-lg shadow-sm hover:shadow transition-all duration-200 cursor-pointer active:scale-[0.98]"
+                >
+                  <span>Sign Up</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
           </div>
 
           {/* Mobile Hamburger Button */}
@@ -173,27 +217,51 @@ export default function Navbar({ onOpenAuth }) {
             </nav>
 
             <div className="pt-4 border-t border-[#245C45]/10 flex flex-col gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAuth?.('login');
-                }}
-                className="w-full py-2.5 px-4 text-center text-sm font-medium text-[#245C45] border border-[#245C45]/30 rounded-lg hover:bg-[#E6EFE7]/50 transition-colors"
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAuth?.('signup');
-                }}
-                className="w-full py-2.5 px-4 text-center text-sm font-medium text-white bg-[#245C45] hover:bg-[#164B38] rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
-              >
-                <UserCheck className="w-4 h-4" />
-                <span>Sign Up</span>
-              </button>
+              {user ? (
+                <>
+                  <div className="px-3 py-2 bg-[#E6EFE7] rounded-lg text-xs text-[#245C45] flex items-center justify-between">
+                    <span className="font-semibold">{user.full_name || user.email}</span>
+                    <span className="px-2 py-0.5 bg-[#245C45] text-white rounded text-[10px] uppercase font-bold">
+                      {user.role}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="w-full py-2 px-4 text-center text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Logout</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenAuth?.('login');
+                    }}
+                    className="w-full py-2.5 px-4 text-center text-sm font-medium text-[#245C45] border border-[#245C45]/30 rounded-lg hover:bg-[#E6EFE7]/50 transition-colors"
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenAuth?.('signup');
+                    }}
+                    className="w-full py-2.5 px-4 text-center text-sm font-medium text-white bg-[#245C45] hover:bg-[#164B38] rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Sign Up</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

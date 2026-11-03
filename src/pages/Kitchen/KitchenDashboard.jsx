@@ -1,4 +1,5 @@
 import { useState, useEffect, useTransition } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Utensils,
   DollarSign,
@@ -17,6 +18,12 @@ import {
   AlertCircle,
   XCircle,
   Layers,
+  PlusCircle,
+  Send,
+  Trash2,
+  HeartHandshake,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,7 +36,6 @@ import {
   Line,
   ComposedChart,
 } from 'recharts';
-import Member4Header from '../../components/dashboard/Member4Header';
 import StatCard from '../../components/dashboard/StatCard';
 import StatusBadge from '../../components/dashboard/StatusBadge';
 import ConfidenceChip from '../../components/dashboard/ConfidenceChip';
@@ -44,13 +50,29 @@ import {
   getDemand,
   generateDemand,
   getKitchenInventory,
+  recordKitchenProduction,
+  recordKitchenWaste,
+  publishSurplusDonation,
+  getBatchStock,
+  getMenuItems,
 } from '../../services/member4Api';
 
-export default function KitchenDashboard() {
+export default function KitchenDashboard({ showTitle = true }) {
+  const location = useLocation();
+
+  const getActiveTab = (pathname) => {
+    if (pathname.includes('/orders')) return 'orders';
+    if (pathname.includes('/demand')) return 'demand';
+    if (pathname.includes('/sales')) return 'sales';
+    if (pathname.includes('/inventory')) return 'inventory';
+    return 'all';
+  };
+
+  const activeTab = getActiveTab(location.pathname);
+
   const [selectedDate, setSelectedDate] = useState(
-    () => new Date().toISOString().split('T')[0]
+    () => sessionStorage.getItem('kitchen_selected_date') || new Date().toISOString().split('T')[0]
   );
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'orders' | 'demand' | 'sales' | 'inventory'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [generatingDemand, setGeneratingDemand] = useState(false);
@@ -64,6 +86,42 @@ export default function KitchenDashboard() {
   const [salesData, setSalesData] = useState(null);
   const [demandData, setDemandData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
+  const [menuItemsList, setMenuItemsList] = useState([]);
+
+  // Production batch modal state
+  const [showProductionModal, setShowProductionModal] = useState(false);
+  const [productionForm, setProductionForm] = useState({
+    menu_item_id: '',
+    batch_date: '',
+    meal_session: 'Lunch',
+    cooked_qty: '',
+    batch_code: '',
+    notes: '',
+  });
+  const [productionSubmitting, setProductionSubmitting] = useState(false);
+  const [productionError, setProductionError] = useState(null);
+
+  // Publish surplus donation modal state
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [selectedBatchForDonation, setSelectedBatchForDonation] = useState(null);
+  const [donationForm, setDonationForm] = useState({
+    quantity: '',
+    collection_deadline: '',
+    notes: '',
+  });
+  const [publishSubmitting, setPublishSubmitting] = useState(false);
+  const [publishError, setPublishError] = useState(null);
+
+  // Wastage modal state
+  const [showWasteModal, setShowWasteModal] = useState(false);
+  const [selectedBatchForWaste, setSelectedBatchForWaste] = useState(null);
+  const [wasteForm, setWasteForm] = useState({
+    quantity: '',
+    category: 'Preparation_Waste',
+    reason: '',
+  });
+  const [wasteSubmitting, setWasteSubmitting] = useState(false);
+  const [wasteError, setWasteError] = useState(null);
 
   // Orders filters state
   const [orderSearch, setOrderSearch] = useState('');
@@ -80,7 +138,7 @@ export default function KitchenDashboard() {
 
     async function fetchDashboardData() {
       try {
-        const [overviewRes, ordersRes, salesRes, demandRes, invRes] =
+        const [overviewRes, ordersRes, salesRes, demandRes, invRes, menuItemsRes] =
           await Promise.all([
             getKitchenOverview(),
             getKitchenOrders({
@@ -93,6 +151,7 @@ export default function KitchenDashboard() {
             getKitchenSales(selectedDate),
             getDemand(selectedDate),
             getKitchenInventory(selectedDate),
+            getMenuItems().catch(() => []),
           ]);
 
         if (active) {
@@ -101,6 +160,7 @@ export default function KitchenDashboard() {
           setSalesData(salesRes);
           setDemandData(demandRes?.recommendations || []);
           setInventoryData(invRes?.items || []);
+          setMenuItemsList(Array.isArray(menuItemsRes) ? menuItemsRes : []);
           setLoading(false);
           setRefreshing(false);
         }
@@ -123,6 +183,7 @@ export default function KitchenDashboard() {
 
   const handleDateChange = (newDate) => {
     setSelectedDate(newDate);
+    sessionStorage.setItem('kitchen_selected_date', newDate);
   };
 
   const handleRefresh = () => {
@@ -242,6 +303,129 @@ export default function KitchenDashboard() {
     document.body.removeChild(link);
   };
 
+  // Open Production Modal
+  const handleOpenProductionModal = () => {
+    const defaultMenuId = menuItemsList[0]?.menu_item_id || inventoryData[0]?.menu_item_id || '';
+    setProductionForm({
+      menu_item_id: defaultMenuId,
+      batch_date: selectedDate,
+      meal_session: 'Lunch',
+      cooked_qty: '',
+      batch_code: '',
+      notes: '',
+    });
+    setProductionError(null);
+    setShowProductionModal(true);
+  };
+
+  // Submit Production Entry
+  const handleSubmitProduction = async (e) => {
+    e.preventDefault();
+    setProductionSubmitting(true);
+    setProductionError(null);
+    try {
+      const res = await recordKitchenProduction({
+        menu_item_id: parseInt(productionForm.menu_item_id, 10),
+        batch_date: productionForm.batch_date || selectedDate,
+        meal_session: productionForm.meal_session,
+        cooked_qty: parseInt(productionForm.cooked_qty, 10),
+        batch_code: productionForm.batch_code || undefined,
+        notes: productionForm.notes || undefined,
+      });
+      setShowProductionModal(false);
+      setActionNotice({
+        type: 'success',
+        message: res.message || 'Production batch logged successfully!',
+      });
+      handleRefresh();
+    } catch (err) {
+      console.error('Failed to record production batch:', err);
+      setProductionError(err.response?.data?.error || err.message || 'Failed to record production batch');
+    } finally {
+      setProductionSubmitting(false);
+    }
+  };
+
+  // Open Publish Surplus Donation Modal
+  const handleOpenPublishModal = (item) => {
+    if (!item.food_batch_id || item.available_surplus <= 0) return;
+    setSelectedBatchForDonation(item);
+    setDonationForm({
+      quantity: item.available_surplus,
+      collection_deadline: '',
+      notes: '',
+    });
+    setPublishError(null);
+    setShowPublishModal(true);
+  };
+
+  // Submit Surplus Donation
+  const handleSubmitPublishDonation = async (e) => {
+    e.preventDefault();
+    if (!selectedBatchForDonation) return;
+    setPublishSubmitting(true);
+    setPublishError(null);
+    try {
+      const res = await publishSurplusDonation({
+        food_batch_id: selectedBatchForDonation.food_batch_id,
+        quantity: parseInt(donationForm.quantity, 10),
+        collection_deadline: donationForm.collection_deadline || undefined,
+        notes: donationForm.notes || undefined,
+      });
+      setShowPublishModal(false);
+      setActionNotice({
+        type: 'success',
+        message: res.message || 'Surplus food donation published successfully!',
+      });
+      handleRefresh();
+    } catch (err) {
+      console.error('Failed to publish surplus donation:', err);
+      setPublishError(err.response?.data?.error || err.message || 'Failed to publish surplus donation');
+    } finally {
+      setPublishSubmitting(false);
+    }
+  };
+
+  // Open Wastage Modal
+  const handleOpenWasteModal = (item) => {
+    if (!item.food_batch_id || item.physical_stock_remaining <= 0) return;
+    setSelectedBatchForWaste(item);
+    setWasteForm({
+      quantity: 1,
+      category: 'Preparation_Waste',
+      reason: '',
+    });
+    setWasteError(null);
+    setShowWasteModal(true);
+  };
+
+  // Submit Wastage Entry
+  const handleSubmitWaste = async (e) => {
+    e.preventDefault();
+    if (!selectedBatchForWaste) return;
+    setWasteSubmitting(true);
+    setWasteError(null);
+    try {
+      const res = await recordKitchenWaste({
+        food_batch_id: selectedBatchForWaste.food_batch_id,
+        quantity: parseInt(wasteForm.quantity, 10),
+        category: wasteForm.category,
+        reason: wasteForm.reason || undefined,
+      });
+      setShowWasteModal(false);
+      setActionNotice({
+        type: 'success',
+        message: res.message || 'Wastage recorded successfully.',
+      });
+      handleRefresh();
+    } catch (err) {
+      console.error('Failed to record wastage:', err);
+      setWasteError(err.response?.data?.error || err.message || 'Failed to record wastage');
+    } finally {
+      setWasteSubmitting(false);
+    }
+  };
+
   // Extract unique pickup slots from orders for filter dropdown
   const uniqueSlots = Array.from(
     new Set(orders.map((o) => o.pickup_slot).filter(Boolean))
@@ -255,129 +439,65 @@ export default function KitchenDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7F2] text-[#252A27] flex flex-col font-sans">
-      <Member4Header
-        title="Kitchen & Production Analytics"
-        subtitle="Demand forecasting, daily batch prep recommendations, and real-time order lifecycle"
-        onRoleChange={handleRefresh}
-      />
+    <div className="space-y-6 text-left">
+      {showTitle && (
+        <div>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#252A27]">
+            Kitchen & Production Analytics
+          </h1>
+          <p className="text-xs sm:text-sm text-[#252A27]/75 mt-0.5">
+            Demand forecasting, daily batch prep recommendations, and real-time order lifecycle
+          </p>
+        </div>
+      )}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Top Controls: Target Date & Tab Navigation */}
-        <div className="bg-white rounded-2xl border border-[#245C45]/10 shadow-sm p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-[#E6EFE7] text-[#245C45]">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <div>
-                <label
-                  htmlFor="kitchen-date"
-                  className="block text-xs font-semibold uppercase tracking-wider text-[#252A27]/60"
-                >
-                  Production Target Date
-                </label>
-                <input
-                  id="kitchen-date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  className="mt-0.5 bg-white border border-[#245C45]/20 rounded-lg text-sm px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#245C45]/30 focus:border-[#245C45] font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="hidden sm:block h-8 w-[1px] bg-[#245C45]/10" />
-
-            {/* Quick Segmented Section Tabs */}
-            <div className="inline-flex p-1 bg-[#F8F7F2] rounded-xl border border-[#245C45]/10 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setActiveTab('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'all'
-                    ? 'bg-[#245C45] text-white shadow-xs'
-                    : 'text-[#252A27]/70 hover:text-[#252A27]'
-                }`}
-              >
-                All Sections
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('orders')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'orders'
-                    ? 'bg-[#245C45] text-white shadow-xs'
-                    : 'text-[#252A27]/70 hover:text-[#252A27]'
-                }`}
-              >
-                <span>Incoming Orders</span>
-                {overview?.pending_orders > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-[#E99A55] text-white text-[10px] flex items-center justify-center font-bold">
-                    {overview.pending_orders}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('demand')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'demand'
-                    ? 'bg-[#245C45] text-white shadow-xs'
-                    : 'text-[#252A27]/70 hover:text-[#252A27]'
-                }`}
-              >
-                Demand Planning
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('sales')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'sales'
-                    ? 'bg-[#245C45] text-white shadow-xs'
-                    : 'text-[#252A27]/70 hover:text-[#252A27]'
-                }`}
-              >
-                Daily Sales
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('inventory')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'inventory'
-                    ? 'bg-[#245C45] text-white shadow-xs'
-                    : 'text-[#252A27]/70 hover:text-[#252A27]'
-                }`}
-              >
-                Inventory
-              </button>
-            </div>
+      {/* Top Controls: Target Date & Action Buttons */}
+      <div className="bg-white rounded-2xl border border-[#245C45]/10 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-[#E6EFE7] text-[#245C45]">
+            <Calendar className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="inline-flex items-center gap-2 bg-white hover:bg-[#F8F7F2] text-[#252A27] border border-[#245C45]/20 rounded-xl text-sm font-medium px-3.5 py-2 transition-all cursor-pointer"
+          <div>
+            <label
+              htmlFor="kitchen-date"
+              className="block text-xs font-semibold uppercase tracking-wider text-[#252A27]/60"
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-[#245C45]' : ''}`} />
-              <span>Refresh</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              disabled={demandData.length === 0}
-              className="inline-flex items-center gap-2 bg-[#245C45] hover:bg-[#164B38] text-white rounded-xl text-sm font-medium px-4 py-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export Prep Sheet</span>
-            </button>
+              Production Target Date
+            </label>
+            <input
+              id="kitchen-date"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="mt-0.5 bg-white border border-[#245C45]/20 rounded-lg text-sm px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#245C45]/30 focus:border-[#245C45] font-medium"
+            />
           </div>
         </div>
 
-        {/* Action / Error Banner */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 bg-white hover:bg-[#F8F7F2] text-[#252A27] border border-[#245C45]/20 rounded-xl text-sm font-medium px-3.5 py-2 transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-[#245C45]' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={demandData.length === 0}
+            className="inline-flex items-center gap-2 bg-[#245C45] hover:bg-[#164B38] text-white rounded-xl text-sm font-medium px-4 py-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Prep Sheet</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Action / Error Banner */}
         {actionNotice && (
           <div
             className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-sm transition-all ${
@@ -421,7 +541,7 @@ export default function KitchenDashboard() {
                   <span className="text-xs text-[#252A27]/60">Date: {selectedDate}</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
                   <StatCard
                     title="Total Orders"
                     value={Number(overview?.total_orders_today || 0).toLocaleString()}
@@ -546,19 +666,19 @@ export default function KitchenDashboard() {
                     description="No orders match the selected search, status, or date filters."
                   />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm border-collapse min-w-[850px]">
+                  <div className="overflow-x-auto max-w-full rounded-xl border border-[#245C45]/10">
+                    <table className="w-full text-left text-sm border-collapse min-w-[940px]">
                       <thead>
-                        <tr className="border-b border-[#245C45]/10 text-xs font-semibold uppercase tracking-wider text-[#252A27]/60">
-                          <th className="py-3 px-3">Order ID</th>
-                          <th className="py-3 px-3">Student Name</th>
-                          <th className="py-3 px-3">Dishes & Quantity</th>
-                          <th className="py-3 px-3 text-center">Items Qty</th>
-                          <th className="py-3 px-3">Order Time</th>
-                          <th className="py-3 px-3">Pickup Slot</th>
-                          <th className="py-3 px-3">Payment</th>
-                          <th className="py-3 px-3">Status</th>
-                          <th className="py-3 px-3 text-right">Kitchen Action</th>
+                        <tr className="border-b border-[#245C45]/10 text-xs font-semibold uppercase tracking-wider text-[#252A27]/60 bg-[#F8F7F2]/40">
+                          <th className="py-3 px-3.5 w-20">Order ID</th>
+                          <th className="py-3 px-3.5 min-w-[150px]">Student Name</th>
+                          <th className="py-3 px-3.5 min-w-[200px]">Dishes & Quantity</th>
+                          <th className="py-3 px-3.5 w-20 text-center">Items Qty</th>
+                          <th className="py-3 px-3.5 w-24 whitespace-nowrap">Order Time</th>
+                          <th className="py-3 px-3.5 w-28 whitespace-nowrap">Pickup Slot</th>
+                          <th className="py-3 px-3.5 w-24 whitespace-nowrap">Payment</th>
+                          <th className="py-3 px-3.5 w-28 whitespace-nowrap">Status</th>
+                          <th className="py-3 px-4 w-44 min-w-[170px] text-right whitespace-nowrap">Kitchen Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#245C45]/5">
@@ -571,26 +691,26 @@ export default function KitchenDashboard() {
                               key={o.order_id}
                               className="hover:bg-[#F8F7F2]/60 transition-colors"
                             >
-                              <td className="py-3 px-3 font-semibold text-[#245C45]">
+                              <td className="py-3 px-3.5 font-semibold text-[#245C45] whitespace-nowrap">
                                 #{o.order_id}
                               </td>
-                              <td className="py-3 px-3">
+                              <td className="py-3 px-3.5 min-w-[150px]">
                                 <div className="font-medium text-[#252A27]">
                                   {o.student_name}
                                 </div>
-                                <span className="text-xs text-[#252A27]/50">
+                                <span className="text-xs text-[#252A27]/50 block">
                                   {o.student_email}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 max-w-xs">
+                              <td className="py-3 px-3.5 min-w-[200px]">
                                 <span className="font-medium text-[#252A27] line-clamp-2">
                                   {o.items_summary || 'Custom order'}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 text-center font-bold text-[#245C45]">
+                              <td className="py-3 px-3.5 text-center font-bold text-[#245C45]">
                                 {o.total_quantity}
                               </td>
-                              <td className="py-3 px-3 text-xs text-[#252A27]/70 whitespace-nowrap">
+                              <td className="py-3 px-3.5 text-xs text-[#252A27]/70 whitespace-nowrap">
                                 {o.order_date
                                   ? new Date(o.order_date).toLocaleTimeString([], {
                                       hour: '2-digit',
@@ -598,13 +718,13 @@ export default function KitchenDashboard() {
                                     })
                                   : '-'}
                               </td>
-                              <td className="py-3 px-3 whitespace-nowrap">
+                              <td className="py-3 px-3.5 whitespace-nowrap">
                                 <span className="inline-flex items-center gap-1 bg-[#F8F7F2] border border-[#245C45]/15 text-[#252A27] text-xs font-medium px-2 py-0.5 rounded-md">
                                   <Clock className="w-3 h-3 text-[#6B8F71]" />
                                   {o.pickup_slot}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 whitespace-nowrap">
+                              <td className="py-3 px-3.5 whitespace-nowrap">
                                 <span
                                   className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-md ${
                                     o.payment_status === 'Paid'
@@ -615,10 +735,10 @@ export default function KitchenDashboard() {
                                   {o.payment_status || 'Paid'}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 whitespace-nowrap">
+                              <td className="py-3 px-3.5 whitespace-nowrap">
                                 <StatusBadge status={o.status} />
                               </td>
-                              <td className="py-3 px-3 text-right whitespace-nowrap">
+                              <td className="py-3 px-4 text-right whitespace-nowrap min-w-[170px]">
                                 {st === 'pending' && (
                                   <div className="inline-flex items-center gap-1.5">
                                     <button
@@ -747,7 +867,7 @@ export default function KitchenDashboard() {
                     description="Click 'Generate Demand Recommendations' to compute dynamic recommendations."
                   />
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-w-full rounded-xl border border-[#245C45]/10">
                     <table className="w-full text-left text-sm border-collapse min-w-[750px]">
                       <thead>
                         <tr className="border-b border-[#245C45]/10 text-xs font-semibold uppercase tracking-wider text-[#252A27]/60">
@@ -999,109 +1119,702 @@ export default function KitchenDashboard() {
               </section>
             )}
 
-            {/* AREA 5: INVENTORY OVERVIEW */}
+            {/* AREA 5: REAL-TIME PRODUCTION & SURPLUS INVENTORY */}
             {(activeTab === 'all' || activeTab === 'inventory') && (
               <section className="bg-white rounded-2xl border border-[#245C45]/10 shadow-sm p-5 sm:p-6 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#245C45]/10 pb-4">
                   <div>
                     <h2 className="text-lg font-serif font-bold text-[#252A27] flex items-center gap-2">
                       <Flame className="w-5 h-5 text-[#245C45]" />
-                      <span>Live Canteen Inventory & Portion Availability</span>
+                      <span>Live Canteen Inventory & Surplus Calculation</span>
                     </h2>
                     <p className="text-xs text-[#252A27]/60">
-                      Cooked batches, portions sold, and remaining inventory with low stock warning (threshold: 15)
+                      Real-time production, committed student orders, cancellations, donations, and leftover surplus
                     </p>
                   </div>
 
-                  {/* Inventory Summary Pills */}
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 bg-[#E6EFE7] text-[#245C45] text-xs font-semibold px-2.5 py-1 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-[#245C45]" />
-                      {inventoryCounts.available} Available
-                    </span>
-                    <span className="inline-flex items-center gap-1 bg-[#E99A55]/20 text-[#252A27] text-xs font-semibold px-2.5 py-1 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-[#E99A55]" />
-                      {inventoryCounts.lowStock} Low Stock
-                    </span>
-                    <span className="inline-flex items-center gap-1 bg-[#B3402F]/10 text-[#B3402F] text-xs font-semibold px-2.5 py-1 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-[#B3402F]" />
-                      {inventoryCounts.outOfStock} Out of Stock
-                    </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenProductionModal}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#245C45] text-white text-xs font-semibold hover:bg-[#1D4A37] transition-all shadow-sm"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" />
+                      <span>Log Production Batch</span>
+                    </button>
+
+                    {/* Inventory Summary Pills */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 bg-[#E6EFE7] text-[#245C45] text-xs font-semibold px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#245C45]" />
+                        {inventoryCounts.available} Available
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-[#E99A55]/20 text-[#252A27] text-xs font-semibold px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E99A55]" />
+                        {inventoryCounts.lowStock} Low Stock
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-[#B3402F]/10 text-[#B3402F] text-xs font-semibold px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#B3402F]" />
+                        {inventoryCounts.outOfStock} Out of Stock
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {inventoryData.length === 0 ? (
                   <EmptyState
                     title="No inventory batches logged"
-                    description="No production batches found for this date in food_batches."
+                    description="No production batches found for this date. Click 'Log Production Batch' above to record prepared food."
                   />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm border-collapse min-w-[650px]">
+                  <div className="overflow-x-auto max-w-full rounded-xl border border-[#245C45]/10">
+                    <table className="w-full text-left text-sm border-collapse min-w-[950px]">
                       <thead>
-                        <tr className="border-b border-[#245C45]/10 text-xs font-semibold uppercase tracking-wider text-[#252A27]/60">
-                          <th className="py-3 px-3">Dish / Category</th>
-                          <th className="py-3 px-3 text-right">Unit Price</th>
-                          <th className="py-3 px-3 text-right">Available Qty</th>
-                          <th className="py-3 px-3 text-right">Cooked (Produced)</th>
-                          <th className="py-3 px-3 text-right">Sold Qty</th>
-                          <th className="py-3 px-3 text-right">Remaining</th>
-                          <th className="py-3 px-3 text-center">Status</th>
+                        <tr className="border-b border-[#245C45]/10 text-xs font-semibold uppercase tracking-wider text-[#252A27]/60 bg-[#F8F7F2]/40">
+                          <th className="py-3 px-3">Dish / Food Item</th>
+                          <th className="py-3 px-2 text-right">Total Prepared</th>
+                          <th className="py-3 px-2 text-right">Student Orders Committed</th>
+                          <th className="py-3 px-2 text-right">Cancelled Orders</th>
+                          <th className="py-3 px-2 text-right">Collected Donations</th>
+                          <th className="py-3 px-2 text-right">Recorded Wastage</th>
+                          <th className="py-3 px-2 text-right">Active Reservations</th>
+                          <th className="py-3 px-3 text-right">Available Surplus</th>
+                          <th className="py-3 px-3 text-center">Actions & Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#245C45]/5">
-                        {inventoryData.map((item) => (
-                          <tr
-                            key={item.menu_item_id}
-                            className="hover:bg-[#F8F7F2]/60 transition-colors"
-                          >
-                            <td className="py-3 px-3">
-                              <div className="font-semibold text-[#252A27]">
-                                {item.item_name}
-                              </div>
-                              <span className="text-xs text-[#6B8F71] font-medium">
-                                {item.category}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-right font-medium">
-                              ₹{item.price}
-                            </td>
-                            <td className="py-3 px-3 text-right font-bold text-[#245C45]">
-                              {item.available_qty}
-                            </td>
-                            <td className="py-3 px-3 text-right text-[#252A27]/80">
-                              {item.produced_qty}
-                            </td>
-                            <td className="py-3 px-3 text-right text-[#252A27]/80">
-                              {item.sold_qty}
-                            </td>
-                            <td className="py-3 px-3 text-right font-semibold">
-                              <span
-                                className={
-                                  item.remaining_qty === 0
-                                    ? 'text-[#B3402F]'
-                                    : item.remaining_qty <= 15
-                                    ? 'text-[#E99A55]'
-                                    : 'text-[#252A27]'
-                                }
-                              >
-                                {item.remaining_qty}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <StatusBadge status={item.status} />
-                            </td>
-                          </tr>
-                        ))}
+                        {inventoryData.map((item) => {
+                          const totalPrepared = Number(item.total_prepared ?? item.produced_qty ?? 0);
+                          const ordersCommitted = Number(item.student_orders_committed ?? item.sold_qty ?? 0);
+                          const cancelledQty = Number(item.cancelled_orders_qty ?? 0);
+                          const collectedDonations = Number(item.collected_donations ?? 0);
+                          const recordedWaste = Number(item.recorded_waste ?? 0);
+                          const activeReservations = Number(item.active_reservations ?? 0);
+                          const availableSurplus = Number(item.available_surplus ?? item.available_qty ?? 0);
+                          const physicalStock = Number(item.physical_stock_remaining ?? Math.max(0, totalPrepared - ordersCommitted - collectedDonations - recordedWaste));
+
+                          return (
+                            <tr
+                              key={item.food_batch_id ? `batch-${item.food_batch_id}` : `menu-${item.menu_item_id}`}
+                              className="hover:bg-[#F8F7F2]/60 transition-colors"
+                            >
+                              <td className="py-3 px-3">
+                                <div className="font-semibold text-[#252A27]">
+                                  {item.item_name}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  <span className="text-[11px] text-[#6B8F71] font-medium">
+                                    {item.category}
+                                  </span>
+                                  {item.batch_code && (
+                                    <span className="text-[10px] bg-[#245C45]/10 text-[#245C45] px-1.5 py-0.5 rounded font-mono font-medium">
+                                      {item.batch_code}
+                                    </span>
+                                  )}
+                                  {item.meal_session && (
+                                    <span className="text-[10px] bg-[#E99A55]/20 text-[#252A27] px-1.5 py-0.5 rounded font-medium">
+                                      {item.meal_session}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-2 text-right font-medium text-[#252A27]">
+                                {totalPrepared}
+                              </td>
+                              <td className="py-3 px-2 text-right font-medium text-[#245C45]">
+                                {ordersCommitted}
+                              </td>
+                              <td className="py-3 px-2 text-right text-xs text-[#252A27]/60">
+                                {cancelledQty}
+                              </td>
+                              <td className="py-3 px-2 text-right text-xs text-[#E99A55] font-medium">
+                                {collectedDonations}
+                              </td>
+                              <td className="py-3 px-2 text-right text-xs text-[#B3402F] font-medium">
+                                {recordedWaste}
+                              </td>
+                              <td className="py-3 px-2 text-right text-xs text-[#252A27]/80">
+                                {activeReservations}
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                <span
+                                  className={`text-base font-bold ${
+                                    availableSurplus === 0
+                                      ? 'text-[#B3402F]'
+                                      : availableSurplus <= 15
+                                      ? 'text-[#E99A55]'
+                                      : 'text-[#245C45]'
+                                  }`}
+                                >
+                                  {availableSurplus}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                                  {item.food_batch_id ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={availableSurplus <= 0}
+                                        onClick={() => handleOpenPublishModal(item)}
+                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                                          availableSurplus > 0
+                                            ? 'bg-[#245C45] text-white hover:bg-[#1D4A37]'
+                                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        }`}
+                                        title={
+                                          availableSurplus > 0
+                                            ? `Publish up to ${availableSurplus} portions as NGO surplus donation`
+                                            : 'No available surplus to publish'
+                                        }
+                                      >
+                                        <HeartHandshake className="w-3.5 h-3.5" />
+                                        <span>Publish Surplus</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        disabled={physicalStock <= 0}
+                                        onClick={() => handleOpenWasteModal(item)}
+                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                          physicalStock > 0
+                                            ? 'border-[#B3402F]/30 text-[#B3402F] hover:bg-[#B3402F]/10'
+                                            : 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                        }`}
+                                        title={
+                                          physicalStock > 0
+                                            ? `Log food wastage (${physicalStock} portions on hand)`
+                                            : 'No physical stock remaining'
+                                        }
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                        <span>Waste</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setProductionForm((prev) => ({
+                                          ...prev,
+                                          menu_item_id: item.menu_item_id,
+                                          batch_date: selectedDate,
+                                        }));
+                                        setShowProductionModal(true);
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#E6EFE7] text-[#245C45] hover:bg-[#245C45] hover:text-white transition-all"
+                                    >
+                                      <PlusCircle className="w-3 h-3" />
+                                      <span>Log Batch</span>
+                                    </button>
+                                  )}
+
+                                  <StatusBadge status={item.status} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
               </section>
             )}
+
+            {/* MODAL 1: RECORD PRODUCTION BATCH */}
+            {showProductionModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+                <div className="bg-white rounded-2xl border border-[#245C45]/20 shadow-xl max-w-md w-full p-6 space-y-4 relative animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-[#245C45]/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-[#E6EFE7] text-[#245C45]">
+                        <ChefHat className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-[#252A27]">
+                          Record Production Batch
+                        </h3>
+                        <p className="text-xs text-[#252A27]/60">
+                          Log prepared plates for kitchen inventory & surplus tracking
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowProductionModal(false)}
+                      className="p-1 rounded-lg text-[#252A27]/60 hover:text-[#252A27] hover:bg-[#F8F7F2]"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {productionError && (
+                    <div className="p-3 rounded-xl bg-[#B3402F]/10 border border-[#B3402F]/20 text-[#B3402F] text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{productionError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmitProduction} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                        Food Item / Dish *
+                      </label>
+                      <select
+                        required
+                        value={productionForm.menu_item_id}
+                        onChange={(e) =>
+                          setProductionForm((prev) => ({
+                            ...prev,
+                            menu_item_id: e.target.value,
+                          }))
+                        }
+                        className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                      >
+                        <option value="" disabled>
+                          Select food item...
+                        </option>
+                        {(menuItemsList.length > 0 ? menuItemsList : inventoryData).map(
+                          (dish) => (
+                            <option key={dish.menu_item_id} value={dish.menu_item_id}>
+                              {dish.name || dish.item_name} ({dish.category || 'General'})
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                          Production Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={productionForm.batch_date}
+                          onChange={(e) =>
+                            setProductionForm((prev) => ({
+                              ...prev,
+                              batch_date: e.target.value,
+                            }))
+                          }
+                          className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                          Meal Session *
+                        </label>
+                        <select
+                          value={productionForm.meal_session}
+                          onChange={(e) =>
+                            setProductionForm((prev) => ({
+                              ...prev,
+                              meal_session: e.target.value,
+                            }))
+                          }
+                          className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                        >
+                          <option value="Breakfast">Breakfast</option>
+                          <option value="Lunch">Lunch</option>
+                          <option value="Evening">Evening</option>
+                          <option value="Dinner">Dinner</option>
+                          <option value="All_Day">All Day</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                          Total Plates Prepared *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          placeholder="e.g. 100"
+                          value={productionForm.cooked_qty}
+                          onChange={(e) =>
+                            setProductionForm((prev) => ({
+                              ...prev,
+                              cooked_qty: e.target.value,
+                            }))
+                          }
+                          className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                          Batch Identifier (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. BATCH-THALI-01"
+                          value={productionForm.batch_code}
+                          onChange={(e) =>
+                            setProductionForm((prev) => ({
+                              ...prev,
+                              batch_code: e.target.value,
+                            }))
+                          }
+                          className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                        Optional Notes
+                      </label>
+                      <textarea
+                        rows="2"
+                        placeholder="e.g. Shift 1 preparation, extra rice included"
+                        value={productionForm.notes}
+                        onChange={(e) =>
+                          setProductionForm((prev) => ({
+                            ...prev,
+                            notes: e.target.value,
+                          }))
+                        }
+                        className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#245C45]/10">
+                      <button
+                        type="button"
+                        onClick={() => setShowProductionModal(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-[#252A27]/70 hover:bg-[#F8F7F2] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={productionSubmitting}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#245C45] text-white hover:bg-[#1D4A37] transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {productionSubmitting ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Save Batch</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 2: PUBLISH SURPLUS DONATION */}
+            {showPublishModal && selectedBatchForDonation && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+                <div className="bg-white rounded-2xl border border-[#245C45]/20 shadow-xl max-w-md w-full p-6 space-y-4 relative animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-[#245C45]/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-[#E6EFE7] text-[#245C45]">
+                        <HeartHandshake className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-[#252A27]">
+                          Publish Surplus Food Offer
+                        </h3>
+                        <p className="text-xs text-[#252A27]/60">
+                          Reserve calculated surplus plates for verified NGO collection
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPublishModal(false)}
+                      className="p-1 rounded-lg text-[#252A27]/60 hover:text-[#252A27] hover:bg-[#F8F7F2]"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {publishError && (
+                    <div className="p-3 rounded-xl bg-[#B3402F]/10 border border-[#B3402F]/20 text-[#B3402F] text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{publishError}</span>
+                    </div>
+                  )}
+
+                  {/* Highlight card with calculated available surplus */}
+                  <div className="p-3.5 rounded-xl bg-[#F8F7F2] border border-[#245C45]/10 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-[#252A27]/70">
+                      <span>Dish:</span>
+                      <strong className="text-[#252A27] text-sm">
+                        {selectedBatchForDonation.item_name}
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-[#252A27]/70">
+                      <span>Batch:</span>
+                      <span className="font-mono text-xs text-[#245C45]">
+                        {selectedBatchForDonation.batch_code || `#${selectedBatchForDonation.food_batch_id}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs border-t border-[#245C45]/10 pt-2">
+                      <span className="font-medium text-[#252A27]">
+                        Calculated Available Surplus:
+                      </span>
+                      <span className="text-lg font-bold text-[#245C45]">
+                        {selectedBatchForDonation.available_surplus} plates
+                      </span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSubmitPublishDonation} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                        Portions to Publish for NGO Claims * (Max: {selectedBatchForDonation.available_surplus})
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={selectedBatchForDonation.available_surplus}
+                        required
+                        value={donationForm.quantity}
+                        onChange={(e) =>
+                          setDonationForm((prev) => ({
+                            ...prev,
+                            quantity: e.target.value,
+                          }))
+                        }
+                        className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                        Collection Deadline (Optional, defaults to 18:30 IST)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={donationForm.collection_deadline}
+                        onChange={(e) =>
+                          setDonationForm((prev) => ({
+                            ...prev,
+                            collection_deadline: e.target.value,
+                          }))
+                        }
+                        className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                        Pickup Instructions / Notes
+                      </label>
+                      <textarea
+                        rows="2"
+                        placeholder="e.g. Please bring clean thermal insulated containers to Rear Loading Dock"
+                        value={donationForm.notes}
+                        onChange={(e) =>
+                          setDonationForm((prev) => ({
+                            ...prev,
+                            notes: e.target.value,
+                          }))
+                        }
+                        className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#245C45]/10">
+                      <button
+                        type="button"
+                        onClick={() => setShowPublishModal(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-[#252A27]/70 hover:bg-[#F8F7F2] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={
+                          publishSubmitting ||
+                          !donationForm.quantity ||
+                          parseInt(donationForm.quantity, 10) <= 0 ||
+                          parseInt(donationForm.quantity, 10) >
+                            selectedBatchForDonation.available_surplus
+                        }
+                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#245C45] text-white hover:bg-[#1D4A37] transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {publishSubmitting ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Publishing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Publish Offer</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 3: LOG FOOD WASTAGE */}
+            {showWasteModal && selectedBatchForWaste && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+                <div className="bg-white rounded-2xl border border-[#245C45]/20 shadow-xl max-w-md w-full p-6 space-y-4 relative animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-[#245C45]/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-[#B3402F]/10 text-[#B3402F]">
+                        <Trash2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-[#252A27]">
+                          Log Kitchen Food Wastage
+                        </h3>
+                        <p className="text-xs text-[#252A27]/60">
+                          Accurately log discarded portions to update physical inventory
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowWasteModal(false)}
+                      className="p-1 rounded-lg text-[#252A27]/60 hover:text-[#252A27] hover:bg-[#F8F7F2]"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {wasteError && (
+                    <div className="p-3 rounded-xl bg-[#B3402F]/10 border border-[#B3402F]/20 text-[#B3402F] text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{wasteError}</span>
+                    </div>
+                  )}
+
+                  <div className="p-3.5 rounded-xl bg-[#F8F7F2] border border-[#245C45]/10 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-[#252A27]/70">
+                      <span>Dish:</span>
+                      <strong className="text-[#252A27] text-sm">
+                        {selectedBatchForWaste.item_name}
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between text-xs border-t border-[#245C45]/10 pt-2">
+                      <span className="font-medium text-[#252A27]">
+                        Physical Stock On-Hand:
+                      </span>
+                      <span className="text-base font-bold text-[#B3402F]">
+                        {selectedBatchForWaste.physical_stock_remaining} portions
+                      </span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSubmitWaste} className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                          Wasted Portions *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max={selectedBatchForWaste.physical_stock_remaining}
+                          required
+                          value={wasteForm.quantity}
+                          onChange={(e) =>
+                            setWasteForm((prev) => ({
+                              ...prev,
+                              quantity: e.target.value,
+                            }))
+                          }
+                          className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                          Wastage Category *
+                        </label>
+                        <select
+                          value={wasteForm.category}
+                          onChange={(e) =>
+                            setWasteForm((prev) => ({
+                              ...prev,
+                              category: e.target.value,
+                            }))
+                          }
+                          className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                        >
+                          <option value="Preparation_Waste">Preparation / Spillage</option>
+                          <option value="Contamination">Contamination / Spoiled</option>
+                          <option value="Post_Service_Leftover">Post-Service Leftover</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#252A27] mb-1">
+                        Reason for Waste *
+                      </label>
+                      <textarea
+                        rows="2"
+                        required
+                        placeholder="e.g. Overcooked, dropped batch, or spoiled during prep"
+                        value={wasteForm.reason}
+                        onChange={(e) =>
+                          setWasteForm((prev) => ({
+                            ...prev,
+                            reason: e.target.value,
+                          }))
+                        }
+                        className="w-full text-sm border border-[#245C45]/20 rounded-xl px-3 py-2 bg-white text-[#252A27] focus:ring-2 focus:ring-[#245C45]/30 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#245C45]/10">
+                      <button
+                        type="button"
+                        onClick={() => setShowWasteModal(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-[#252A27]/70 hover:bg-[#F8F7F2] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={
+                          wasteSubmitting ||
+                          !wasteForm.quantity ||
+                          parseInt(wasteForm.quantity, 10) <= 0 ||
+                          parseInt(wasteForm.quantity, 10) >
+                            selectedBatchForWaste.physical_stock_remaining
+                        }
+                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#B3402F] text-white hover:bg-[#923325] transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {wasteSubmitting ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Recording...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Record Waste</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </>
         )}
-      </main>
-    </div>
-  );
-}
+      </div>
+    );
+  }

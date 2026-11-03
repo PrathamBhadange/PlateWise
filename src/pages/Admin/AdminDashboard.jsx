@@ -8,6 +8,11 @@ import {
   FileText,
   Percent,
   ArrowRight,
+  UserCheck,
+  ShieldCheck,
+  Check,
+  X,
+  UserPlus,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -27,7 +32,15 @@ import StatCard from '../../components/dashboard/StatCard';
 import LoadingSpinner from '../../components/dashboard/LoadingSpinner';
 import ErrorMessage from '../../components/dashboard/ErrorMessage';
 import EmptyState from '../../components/dashboard/EmptyState';
-import { getAdminImpact, getAuditLogs } from '../../services/member4Api';
+import {
+  getAdminImpact,
+  getAuditLogs,
+  getPendingUsers,
+  approveUser,
+  rejectUser,
+  promoteToKitchen,
+  getAdminStudents,
+} from '../../services/member4Api';
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -36,20 +49,33 @@ export default function AdminDashboard() {
 
   const [impactData, setImpactData] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [students, setStudents] = useState([]);
+
+  const [actionNotice, setActionNotice] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [confirmPromoteUser, setConfirmPromoteUser] = useState(null);
 
   useEffect(() => {
     let active = true;
 
     async function fetchData() {
       try {
-        const [impRes, logsRes] = await Promise.all([
+        const [impRes, logsRes, pendingRes, studentsRes] = await Promise.all([
           getAdminImpact(),
           getAuditLogs(),
+          getPendingUsers().catch(() => []),
+          getAdminStudents().catch(() => []),
         ]);
 
         if (active) {
           setImpactData(impRes);
           setAuditLogs(logsRes || []);
+          setPendingUsers(pendingRes || []);
+          setStudents(studentsRes || []);
           setLoading(false);
         }
       } catch (err) {
@@ -71,6 +97,56 @@ export default function AdminDashboard() {
   const handleRefresh = () => {
     setLoading(true);
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleApprove = async (userId) => {
+    setActionLoadingId(userId);
+    setActionNotice(null);
+    setActionError(null);
+    try {
+      const res = await approveUser(userId);
+      setActionNotice(res.message || 'Staff account approved successfully');
+      setPendingUsers((prev) => prev.filter((u) => u.user_id !== userId));
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to approve staff account');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleReject = async (userId) => {
+    setActionLoadingId(userId);
+    setActionNotice(null);
+    setActionError(null);
+    try {
+      const res = await rejectUser(userId);
+      setActionNotice(res.message || 'Staff account rejected');
+      setPendingUsers((prev) => prev.filter((u) => u.user_id !== userId));
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to reject staff account');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handlePromoteConfirm = async () => {
+    if (!confirmPromoteUser) return;
+    setIsPromoting(true);
+    setActionNotice(null);
+    setActionError(null);
+    try {
+      const res = await promoteToKitchen(confirmPromoteUser.user_id);
+      setActionNotice(res.message || 'Student promoted to kitchen staff successfully');
+      setConfirmPromoteUser(null);
+      setSelectedStudentId('');
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to promote student');
+    } finally {
+      setIsPromoting(false);
+    }
   };
 
   const impact = impactData?.impact || {};
@@ -254,6 +330,212 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Action Feedback Alerts */}
+            {actionNotice && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{actionNotice}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionNotice(null)}
+                  className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {actionError && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{actionError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionError(null)}
+                  className="text-rose-700 hover:text-rose-900 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Staff Registrations & Approvals Section */}
+            <div className="bg-white rounded-2xl border border-[#245C45]/10 shadow-sm p-5 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#245C45]/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-[#E6EFE7] text-[#245C45]">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-serif font-bold text-[#252A27]">
+                      Staff Approvals & Role Management
+                    </h2>
+                    <p className="text-xs text-[#252A27]/60">
+                      Review cafeteria staff account registrations and assign administrative permissions
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto">
+                  {pendingUsers.length} Pending Approval{pendingUsers.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {pendingUsers.length === 0 ? (
+                <div className="p-6 text-center bg-[#F8F7F2] rounded-xl border border-[#245C45]/10">
+                  <ShieldCheck className="w-8 h-8 text-[#245C45] mx-auto mb-2 opacity-80" />
+                  <p className="text-xs font-semibold text-[#252A27]">All staff registrations reviewed</p>
+                  <p className="text-[11px] text-[#252A27]/60 mt-0.5">
+                    No cafeteria staff accounts are currently awaiting administrator approval.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse min-w-[650px]">
+                    <thead>
+                      <tr className="border-b border-[#245C45]/10 font-semibold uppercase tracking-wider text-[#252A27]/60">
+                        <th className="py-2.5 px-3">Applicant Name</th>
+                        <th className="py-2.5 px-3">Email Address</th>
+                        <th className="py-2.5 px-3">Requested Role</th>
+                        <th className="py-2.5 px-3">Registered On</th>
+                        <th className="py-2.5 px-3">Status</th>
+                        <th className="py-2.5 px-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#245C45]/5">
+                      {pendingUsers.map((pUser) => (
+                        <tr key={pUser.user_id || pUser.id} className="hover:bg-[#F8F7F2]/60">
+                          <td className="py-2.5 px-3 font-semibold text-[#252A27]">
+                            {pUser.full_name}
+                            <span className="text-[10px] text-[#252A27]/50 block">ID: #{pUser.user_id || pUser.id}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-[#252A27]/80">{pUser.email}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#E6EFE7] text-[#245C45] uppercase">
+                              {pUser.role} (Kitchen)
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-[#252A27]/60">
+                            {pUser.created_at ? new Date(pUser.created_at).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              {pUser.account_status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={actionLoadingId === (pUser.user_id || pUser.id)}
+                                onClick={() => handleApprove(pUser.user_id || pUser.id)}
+                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-[#245C45] text-white hover:bg-[#1b4634] transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {actionLoadingId === (pUser.user_id || pUser.id) ? '...' : 'Approve'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={actionLoadingId === (pUser.user_id || pUser.id)}
+                                onClick={() => handleReject(pUser.user_id || pUser.id)}
+                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {actionLoadingId === (pUser.user_id || pUser.id) ? '...' : 'Reject'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Promotion of Existing Misregistered Accounts */}
+              <div className="pt-4 border-t border-[#245C45]/10">
+                <div className="flex items-center gap-2 mb-2">
+                  <UserPlus className="w-4 h-4 text-[#245C45]" />
+                  <h3 className="text-sm font-serif font-bold text-[#252A27]">
+                    Promote Existing Student to Kitchen Staff
+                  </h3>
+                </div>
+                <p className="text-xs text-[#252A27]/70 mb-3">
+                  Allows promoting student accounts (e.g. staff who inadvertently registered as students) to cafeteria staff. Preserves credentials, login history, and email.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <select
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="w-full sm:w-80 bg-[#F8F7F2] border border-[#245C45]/20 rounded-xl px-3 py-2 text-xs text-[#252A27] focus:outline-none focus:ring-2 focus:ring-[#245C45]/30 font-medium"
+                  >
+                    <option value="">-- Select a student account to promote --</option>
+                    {students.map((st) => (
+                      <option key={st.user_id} value={st.user_id}>
+                        {st.full_name} ({st.email}) - ID #{st.user_id}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    disabled={!selectedStudentId}
+                    onClick={() => {
+                      const found = students.find((s) => String(s.user_id) === String(selectedStudentId));
+                      if (found) setConfirmPromoteUser(found);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#245C45] text-white hover:bg-[#1b4634] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+                  >
+                    Promote to Kitchen Staff
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Confirmation Dialog Modal for Account Promotion */}
+            {confirmPromoteUser && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#245C45]/20 shadow-2xl space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E6EFE7] text-[#245C45] flex items-center justify-center mx-auto">
+                    <UserPlus className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-lg font-serif font-bold text-[#252A27]">
+                      Confirm Staff Promotion
+                    </h3>
+                    <p className="text-xs text-[#252A27]/70 mt-1">
+                      Are you sure you want to promote <strong>{confirmPromoteUser.full_name}</strong> (<code>{confirmPromoteUser.email}</code>) to <strong>Kitchen Staff</strong>?
+                    </p>
+                  </div>
+                  <div className="bg-[#F8F7F2] rounded-xl p-3 border border-[#245C45]/10 text-[11px] text-[#252A27]/70 space-y-1">
+                    <p>• Account role will transition from <code>student</code> to <code>kitchen</code>.</p>
+                    <p>• Account status will be set to <code>active</code>.</p>
+                    <p>• Password hash, user ID (#{confirmPromoteUser.user_id}), and email are strictly preserved.</p>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-2">
+                    <button
+                      type="button"
+                      disabled={isPromoting}
+                      onClick={() => setConfirmPromoteUser(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 text-[#252A27] hover:bg-stone-200 transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPromoting}
+                      onClick={handlePromoteConfirm}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#245C45] text-white hover:bg-[#1b4634] transition-colors cursor-pointer disabled:opacity-50 shadow-xs"
+                    >
+                      {isPromoting ? 'Promoting...' : 'Confirm Promotion'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Audit Log Table */}
             <div className="bg-white rounded-2xl border border-[#245C45]/10 shadow-sm p-5 sm:p-6">

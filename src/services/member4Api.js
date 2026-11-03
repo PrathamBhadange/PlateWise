@@ -120,6 +120,24 @@ export async function updateOrderStatus(orderId, targetStatus, currentStatus) {
 }
 
 /**
+ * GET /api/kitchen/menu
+ */
+export async function getKitchenMenu() {
+  const res = await api.get('/kitchen/menu');
+  return res.data;
+}
+
+/**
+ * PATCH /api/kitchen/menu/:id/availability
+ */
+export async function updateMenuItemAvailability(menuItemId, isAvailable) {
+  const res = await api.patch(`/kitchen/menu/${menuItemId}/availability`, {
+    is_available: Boolean(isAvailable),
+  });
+  return res.data;
+}
+
+/**
  * GET /api/kitchen/sales?date=
  */
 export async function getKitchenSales(date) {
@@ -400,6 +418,7 @@ export async function submitComplaint(payload) {
       menu_item_id: payload.menu_item_id,
       menu_item_name: MOCK_MENU_ITEMS.find((m) => m.menu_item_id === Number(payload.menu_item_id))?.name || 'General Canteen',
       description: payload.description,
+      proof_image: payload.proof_image || null,
       category,
       severity,
       status: 'open',
@@ -493,3 +512,78 @@ export async function getMenuItems() {
   }
 }
 
+/**
+ * GET /api/admin/pending-users
+ */
+export async function getPendingUsers() {
+  const res = await api.get('/admin/pending-users');
+  return res.data;
+}
+
+/**
+ * PATCH /api/admin/users/:userId/approve
+ */
+export async function approveUser(userId) {
+  const res = await api.patch(`/admin/users/${userId}/approve`);
+  return res.data;
+}
+
+/**
+ * PATCH /api/admin/users/:userId/reject
+ */
+export async function rejectUser(userId) {
+  const res = await api.patch(`/admin/users/${userId}/reject`);
+  return res.data;
+}
+
+/**
+ * PATCH /api/admin/users/:userId/promote-to-kitchen
+ */
+export async function promoteToKitchen(userId) {
+  const res = await api.patch(`/admin/users/${userId}/promote-to-kitchen`, { confirm: true });
+  return res.data;
+}
+
+/**
+ * GET /api/admin/students
+ */
+export async function getAdminStudents() {
+  const res = await api.get('/admin/students');
+  return res.data;
+}
+
+/**
+ * POST /api/kitchen/production
+ * Records production batch for a food item and meal session
+ */
+export async function recordKitchenProduction(data) {
+  const res = await api.post('/kitchen/production', data);
+  return res.data;
+}
+
+/**
+ * POST /api/kitchen/waste
+ * Records food wastage for a batch
+ */
+export async function recordKitchenWaste(data) {
+  const res = await api.post('/kitchen/waste', data);
+  return res.data;
+}
+
+/**
+ * POST /api/kitchen/donations
+ * Publishes surplus food from a prepared batch as an NGO donation
+ */
+export async function publishSurplusDonation(data) {
+  const res = await api.post('/kitchen/donations', data);
+  return res.data;
+}
+
+/**
+ * GET /api/kitchen/batches/:id/stock
+ * Fetches real-time stock calculation for a specific food batch
+ */
+export async function getBatchStock(batchId) {
+  const res = await api.get(`/kitchen/batches/${batchId}/stock`);
+  return res.data;
+}

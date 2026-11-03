@@ -7,13 +7,17 @@ import {
   Sparkles,
   ArrowRight,
   ShieldAlert,
+  UploadCloud,
+  Trash2,
 } from 'lucide-react';
 import Member4Header from '../../components/dashboard/Member4Header';
 import SeverityBadge from '../../components/dashboard/SeverityBadge';
 import ErrorMessage from '../../components/dashboard/ErrorMessage';
 import { submitComplaint, getMenuItems } from '../../services/member4Api';
+import { useAuth } from '../../context/useAuth';
 
 export default function NewComplaint() {
+  const { user } = useAuth();
   const [menuItems, setMenuItems] = useState([]);
   const [loadingMenu, setLoadingMenu] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -21,6 +25,8 @@ export default function NewComplaint() {
 
   const [selectedItem, setSelectedItem] = useState('');
   const [description, setDescription] = useState('');
+  const [proofImage, setProofImage] = useState('');
+  const [proofFileName, setProofFileName] = useState('');
   const [submissionResult, setSubmissionResult] = useState(null);
 
   useEffect(() => {
@@ -47,6 +53,37 @@ export default function NewComplaint() {
     };
   }, []);
 
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size exceeds 5MB limit. Please upload a smaller image.');
+      return;
+    }
+
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProofImage(reader.result);
+      setProofFileName(file.name);
+    };
+    reader.onerror = () => {
+      setError('Failed to read image file. Please try another image.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setProofImage('');
+    setProofFileName('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!description.trim()) {
@@ -54,19 +91,27 @@ export default function NewComplaint() {
       return;
     }
 
+    if (!proofImage) {
+      setError('Proof image is mandatory. Please upload an image showing proof of your complaint.');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
       const payload = {
-        user_id: 5, // Demo student Aarav Sharma
+        user_id: user?.user_id,
         menu_item_id: selectedItem ? Number(selectedItem) : null,
         description: description.trim(),
+        proof_image: proofImage,
       };
 
       const res = await submitComplaint(payload);
       setSubmissionResult(res);
       setDescription('');
       setSelectedItem('');
+      setProofImage('');
+      setProofFileName('');
     } catch (err) {
       console.error('Submission failed:', err);
       setError(err.message || 'Failed to submit complaint');
@@ -155,6 +200,17 @@ export default function NewComplaint() {
                 </span>
               </div>
 
+              {submissionResult.ticket?.proof_image && (
+                <div className="pt-2 border-t border-[#245C45]/10">
+                  <span className="text-[#252A27]/60 block mb-1 font-semibold">Attached Proof Photo:</span>
+                  <img
+                    src={submissionResult.ticket.proof_image}
+                    alt="Proof Evidence"
+                    className="max-h-40 w-auto rounded-lg border border-[#245C45]/20 object-contain bg-white"
+                  />
+                </div>
+              )}
+
               <div className="pt-2 border-t border-[#245C45]/10 text-xs text-[#252A27]/70">
                 If the canteen kitchen does not resolve this issue within the SLA window, our automated database daemon escalates the ticket directly to campus administration.
               </div>
@@ -230,6 +286,71 @@ export default function NewComplaint() {
               />
             </div>
 
+            {/* Proof Image Upload (Compulsory) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#252A27]/70">
+                  Incident Proof Photo <span className="text-[#B3402F]">*</span>
+                </label>
+                <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                  Compulsory
+                </span>
+              </div>
+
+              {!proofImage ? (
+                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-[#245C45]/30 rounded-xl bg-[#F8F7F2] hover:bg-[#E6EFE7]/40 cursor-pointer transition-colors group">
+                  <div className="w-10 h-10 rounded-full bg-[#245C45]/10 flex items-center justify-center text-[#245C45] mb-2 group-hover:scale-105 transition-transform">
+                    <UploadCloud className="w-5 h-5" />
+                  </div>
+                  <span className="text-sm font-semibold text-[#245C45]">
+                    Click to upload proof photo
+                  </span>
+                  <span className="text-xs text-[#252A27]/50 mt-1">
+                    PNG, JPG, JPEG or WEBP (Max 5MB)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                    required
+                  />
+                </label>
+              ) : (
+                <div className="p-4 bg-[#F8F7F2] border border-[#245C45]/20 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Proof Photo Attached</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+
+                  <div className="relative group overflow-hidden rounded-xl border border-[#245C45]/15 bg-white">
+                    <img
+                      src={proofImage}
+                      alt="Complaint Proof Preview"
+                      className="w-full max-h-52 object-contain bg-stone-50"
+                    />
+                    <div className="p-2 bg-white/95 border-t border-[#245C45]/10 text-xs text-[#252A27]/70 flex items-center justify-between truncate">
+                      <span className="truncate max-w-[240px] font-medium">{proofFileName}</span>
+                      <span className="text-emerald-700 font-semibold">Ready to submit</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <span className="text-[11px] text-[#252A27]/50 mt-1 block">
+                Visual proof is mandatory for canteen staff verification and prompt redressal.
+              </span>
+            </div>
+
             {/* Keyword Hints Pill Row */}
             <div className="p-3 bg-[#F8F7F2] rounded-xl border border-[#245C45]/10 text-xs space-y-1">
               <div className="flex items-center gap-1 font-semibold text-[#245C45]">
@@ -244,7 +365,7 @@ export default function NewComplaint() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting || !description.trim()}
+              disabled={submitting || !description.trim() || !proofImage}
               className="w-full bg-[#245C45] hover:bg-[#164B38] text-white rounded-xl text-sm font-semibold py-3 px-4 transition-all duration-200 shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
             >
               <Send className="w-4 h-4" />
